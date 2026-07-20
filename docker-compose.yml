@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: recruitment_mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secure_password_2026}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-recruitment_db}
+      MYSQL_USER: ${MYSQL_USER:-recruitment_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-recruitment_secure_pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_secure_password_2026}"]
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: recruitment_backend_api
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_CONNECTION: "server=db;port=3306;database=${MYSQL_DATABASE:-recruitment_db};uid=${MYSQL_USER:-recruitment_user};pwd=${MYSQL_PASSWORD:-recruitment_secure_pass};AllowPublicKeyRetrieval=True;SSLMode=None"
+      Jwt__Secret: ${JWT_SECRET:-SuperSecretKeyRecruitmentPortal2026!!!}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: recruitment_frontend_web
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  uploads_data:
