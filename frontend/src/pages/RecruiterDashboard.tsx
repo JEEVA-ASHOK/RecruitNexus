@@ -954,8 +954,46 @@ export const RecruiterDashboard: React.FC = () => {
                               <p style={styles.boxText}><Translate text={app.coverLetter || 'No cover letter provided.'} /></p>
                             </div>
                             <div style={{ flex: 2, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: '20px' }}>
-                              <h5 style={styles.boxTitle} className="text-gradient">AI Fit Analysis</h5>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                <h5 style={styles.boxTitle} className="text-gradient">AI Fit Analysis</h5>
+                                <span className={`badge ${app.matchingScore >= 80 ? 'badge-green' : app.matchingScore >= 60 ? 'badge-purple' : 'badge-orange'}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                                  {app.matchingScore}% Match Score
+                                </span>
+                              </div>
                               <p style={styles.boxText}><Translate text={app.ai_Feedback} /></p>
+                              
+                              {/* Optional Skills Breakdown */}
+                              {(() => {
+                                const feedback = app.ai_Feedback || '';
+                                const matchMatch = feedback.match(/matching skills?:?\s*([^.]+)/i) || feedback.match(/strong alignment with\s*([^.]+)/i);
+                                const gapMatch = feedback.match(/missing skills?:?\s*([^.]+)/i) || feedback.match(/gap detected in\s*([^.]+)/i) || feedback.match(/skill gap in\s*([^.]+)/i);
+                                
+                                const matchingSkills = matchMatch ? matchMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
+                                const missingSkills = gapMatch ? gapMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
+
+                                if (matchingSkills.length === 0 && missingSkills.length === 0) return null;
+
+                                return (
+                                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    {matchingSkills.length > 0 && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Matching Skills:</span>
+                                        {matchingSkills.map((sk, idx) => (
+                                          <span key={idx} className="badge badge-green" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>{sk}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {missingSkills.length > 0 && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>Skill Gaps:</span>
+                                        {missingSkills.map((sk, idx) => (
+                                          <span key={idx} className="badge badge-orange" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>{sk}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                             <div style={{ flex: 1.5, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: '20px', display: 'flex', flexDirection: 'column' }}>
                               <h5 style={styles.boxTitle} className="text-gradient">Recruiter Private Notes</h5>

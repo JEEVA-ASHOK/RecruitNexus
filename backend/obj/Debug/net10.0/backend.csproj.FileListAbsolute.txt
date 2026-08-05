@@ -163,4 +163,4 @@ C:\Users\jeeva\.gemini\antigravity\scratch\recruitment-portal\backend\bin\Debug\
 C:\Users\jeeva\.gemini\antigravity\scratch\recruitment-portal\backend\bin\Debug\net10.0\BouncyCastle.Cryptography.dll
 C:\Users\jeeva\.gemini\antigravity\scratch\recruitment-portal\backend\bin\Debug\net10.0\MailKit.dll
 C:\Users\jeeva\.gemini\antigravity\scratch\recruitment-portal\backend\bin\Debug\net10.0\MimeKit.dll
-C:\Users\jeeva\.gemini\antigravity\scratch\recruitment-portal\backend\obj\Debug\net10.0\staticwebassets.upToDateCheck.txt
+C:\Users\jeeva\.gemini\antigravity\scratch\recruitment-portal\backend\obj\Debug\net10.0\backend.sourcelink.json

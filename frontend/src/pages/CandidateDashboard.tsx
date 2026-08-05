@@ -755,7 +755,12 @@ export const CandidateDashboard: React.FC = () => {
           {selectedApp && (
             <div style={styles.feedbackDetail} className="glass-panel">
               <div style={styles.feedbackHeader}>
-                <h4 style={{ color: '#00f2fe' }}>AI Match Report for {selectedApp.jobTitle}</h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h4 style={{ color: '#00f2fe', margin: 0 }}>AI Match Report for {selectedApp.jobTitle}</h4>
+                  <span className={`badge ${selectedApp.matchingScore >= 80 ? 'badge-green' : selectedApp.matchingScore >= 60 ? 'badge-purple' : 'badge-orange'}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                    {selectedApp.matchingScore}% Match Score
+                  </span>
+                </div>
                 <button style={styles.closeBtn} onClick={() => setSelectedApp(null)}>×</button>
               </div>
               <StatusTimeline 
@@ -763,6 +768,39 @@ export const CandidateDashboard: React.FC = () => {
                 interviews={interviews.filter(i => i.applicationId === selectedApp.id)} 
               />
               <p style={styles.feedbackText}><Translate text={selectedApp.ai_Feedback} /></p>
+
+              {/* Optional Skills Breakdown */}
+              {(() => {
+                const feedback = selectedApp.ai_Feedback || '';
+                const matchMatch = feedback.match(/matching skills?:?\s*([^.]+)/i) || feedback.match(/strong alignment with\s*([^.]+)/i);
+                const gapMatch = feedback.match(/missing skills?:?\s*([^.]+)/i) || feedback.match(/gap detected in\s*([^.]+)/i) || feedback.match(/skill gap in\s*([^.]+)/i);
+                
+                const matchingSkills = matchMatch ? matchMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
+                const missingSkills = gapMatch ? gapMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
+
+                if (matchingSkills.length === 0 && missingSkills.length === 0) return null;
+
+                return (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {matchingSkills.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: 600 }}>Matching Skills:</span>
+                        {matchingSkills.map((sk, idx) => (
+                          <span key={idx} className="badge badge-green" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>{sk}</span>
+                        ))}
+                      </div>
+                    )}
+                    {missingSkills.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600 }}>Skill Gaps:</span>
+                        {missingSkills.map((sk, idx) => (
+                          <span key={idx} className="badge badge-orange" style={{ fontSize: '0.75rem', padding: '2px 8px' }}>{sk}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
