@@ -24,4 +24,10 @@ namespace backend.DTOs
     {
         public string Reply { get; set; } = string.Empty;
     }
+
+    public class GenerateQuestionsRequest
+    {
+        [Required]
+        public int ApplicationId { get; set; }
+    }
 }

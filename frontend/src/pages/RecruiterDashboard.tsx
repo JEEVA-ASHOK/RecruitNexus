@@ -131,6 +131,74 @@ export const RecruiterDashboard: React.FC = () => {
   const [generatingOfferApp, setGeneratingOfferApp] = useState<any | null>(null);
   const [offerContent, setOfferContent] = useState('');
 
+  // AI Interview Questions Generator Modal state
+  const [aiGenAppModal, setAiGenAppModal] = useState<Application | null>(null);
+  const [aiGenQuestionsResult, setAiGenQuestionsResult] = useState<any | null>(null);
+  const [loadingAiGenQuestions, setLoadingAiGenQuestions] = useState(false);
+  const [savingQuestionsNotice, setSavingQuestionsNotice] = useState(false);
+  // AI Candidate Ranking Filter States
+  const [rankingStatusFilter, setRankingStatusFilter] = useState<string>('All');
+  const [rankingRecommendationFilter, setRankingRecommendationFilter] = useState<string>('All');
+  const [rankingJobFilter, setRankingJobFilter] = useState<string>('All');
+
+  const getRecommendationBadge = (score: number) => {
+    if (score >= 95) return { label: '⭐ Highly Recommended', badgeClass: 'badge-green', color: '#10b981' };
+    if (score >= 85) return { label: '👍 Recommended', badgeClass: 'badge-purple', color: '#8b5cf6' };
+    if (score >= 70) return { label: '💡 Consider', badgeClass: 'badge-orange', color: '#f59e0b' };
+    return { label: '⚠️ Not Recommended', badgeClass: 'badge-red', color: '#ef4444' };
+  };
+
+  const getStatusPriority = (status: string) => {
+    if (status === 'Offered' || status === 'Interviewing') return 4;
+    if (status === 'Reviewing') return 3;
+    if (status === 'Applied') return 2;
+    return 1; // Rejected / others
+  };
+
+  const getRankedApplications = () => {
+    let list = [...applications];
+
+    if (rankingStatusFilter !== 'All') {
+      list = list.filter(a => a.status === rankingStatusFilter);
+    }
+    if (rankingJobFilter !== 'All') {
+      list = list.filter(a => a.jobTitle === rankingJobFilter);
+    }
+    if (rankingRecommendationFilter !== 'All') {
+      if (rankingRecommendationFilter === 'HighlyRecommended') list = list.filter(a => a.matchingScore >= 95);
+      else if (rankingRecommendationFilter === 'Recommended') list = list.filter(a => a.matchingScore >= 85 && a.matchingScore < 95);
+      else if (rankingRecommendationFilter === 'Consider') list = list.filter(a => a.matchingScore >= 70 && a.matchingScore < 85);
+      else if (rankingRecommendationFilter === 'NotRecommended') list = list.filter(a => a.matchingScore < 70);
+    }
+
+    list.sort((a, b) => {
+      if (b.matchingScore !== a.matchingScore) {
+        return b.matchingScore - a.matchingScore;
+      }
+      const statusDiff = getStatusPriority(b.status) - getStatusPriority(a.status);
+      if (statusDiff !== 0) return statusDiff;
+      return new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime();
+    });
+
+    return list;
+  };
+
+  const handleGenerateAiQuestions = async (app: Application) => {
+    setAiGenAppModal(app);
+    setAiGenQuestionsResult(null);
+    setLoadingAiGenQuestions(true);
+    setSavingQuestionsNotice(false);
+
+    const { data, error } = await apiRequest<any>('/ai/generate-questions', 'POST', {
+      applicationId: app.id
+    });
+
+    setLoadingAiGenQuestions(false);
+    if (!error && data) {
+      setAiGenQuestionsResult(data);
+    }
+  };
+
   const handleOpenOfferGenerator = (app: any) => {
     setGeneratingOfferApp(app);
     const today = new Date().toLocaleDateString();
@@ -847,54 +915,154 @@ export const RecruiterDashboard: React.FC = () => {
       )}
 
       {activeTab === 'applications' && (
-        <div className="glass-panel" style={styles.card}>
-          <div style={{ ...styles.cardHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <FileText size={20} color="#00f2fe" />
-              <h2 style={styles.cardTitle}>Incoming Candidates</h2>
-            </div>
-            {applications.length > 0 && (
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  onClick={exportToCSV}
-                  className="btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#22c55e', color: '#22c55e' }}
-                >
-                  📥 Export to Excel (CSV)
-                </button>
-                <button 
-                  onClick={exportToPDF}
-                  className="btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#ef4444', color: '#ef4444' }}
-                >
-                  📄 Export to PDF
-                </button>
-              </div>
-            )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Summary Cards */}
+          <div style={styles.statsGrid}>
+            <DashboardCard
+              title="Total Candidates"
+              value={applications.length}
+              icon={<Users size={20} color="#00f2fe" />}
+              subtext="All Pool"
+            />
+            <DashboardCard
+              title="Highly Recommended"
+              value={applications.filter(a => a.matchingScore >= 95).length}
+              icon={<Award size={20} color="#10b981" />}
+              subtext="95-100 Score"
+            />
+            <DashboardCard
+              title="Interview Ready"
+              value={applications.filter(a => a.status === 'Interviewing' || a.status === 'Offered').length}
+              icon={<Calendar size={20} color="#8b5cf6" />}
+              subtext="Shortlisted"
+            />
+            <DashboardCard
+              title="Average Match Score"
+              value={applications.length > 0 ? Math.round(applications.reduce((acc, a) => acc + (a.matchingScore || 0), 0) / applications.length) + '%' : '0%'}
+              icon={<BarChart3 size={20} color="#f59e0b" />}
+              subtext="Pool Mean"
+            />
           </div>
 
-          {applications.length === 0 ? (
-            <div style={styles.emptyMsg}>No candidates have applied to your job postings yet.</div>
-          ) : (
-            <div style={styles.tableWrapper}>
-              <table style={styles.table}>
-                <thead>
-                  <tr style={styles.tableHeaderRow}>
-                    <th style={styles.th}>Candidate</th>
-                    <th style={styles.th}>Job Title</th>
-                    <th style={styles.th}>AI Fit Score</th>
-                    <th style={styles.th}>Resume</th>
-                    <th style={styles.th}>Status</th>
-                    <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {applications.slice((appsPage - 1) * pageSize, appsPage * pageSize).map((app) => (
-                    <React.Fragment key={app.id}>
-                      <tr style={styles.tr}>
-                        <td style={styles.td}>
-                          <strong>{app.candidateName}</strong>
-                        </td>
+          <div className="glass-panel" style={styles.card}>
+            <div style={{ ...styles.cardHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FileText size={20} color="#00f2fe" />
+                <h2 style={styles.cardTitle}>AI Candidate Ranking Dashboard</h2>
+              </div>
+              {applications.length > 0 && (
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={exportToCSV}
+                    className="btn-secondary" 
+                    style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#22c55e', color: '#22c55e' }}
+                  >
+                    📥 Export to Excel (CSV)
+                  </button>
+                  <button 
+                    onClick={exportToPDF}
+                    className="btn-secondary" 
+                    style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#ef4444', color: '#ef4444' }}
+                  >
+                    📄 Export to PDF
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Filter Controls Bar */}
+            {applications.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', margin: '16px 0 20px 0', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Recommendation:</span>
+                  <select
+                    value={rankingRecommendationFilter}
+                    onChange={(e) => { setRankingRecommendationFilter(e.target.value); setAppsPage(1); }}
+                    style={{ ...styles.statusSelect, width: 'auto', background: 'rgba(0,0,0,0.4)', padding: '6px 10px', fontSize: '0.8rem' }}
+                  >
+                    <option value="All">All Recommendations</option>
+                    <option value="HighlyRecommended">⭐ Highly Recommended (95-100)</option>
+                    <option value="Recommended">👍 Recommended (85-94)</option>
+                    <option value="Consider">💡 Consider (70-84)</option>
+                    <option value="NotRecommended">⚠️ Not Recommended (&lt;70)</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Status:</span>
+                  <select
+                    value={rankingStatusFilter}
+                    onChange={(e) => { setRankingStatusFilter(e.target.value); setAppsPage(1); }}
+                    style={{ ...styles.statusSelect, width: 'auto', background: 'rgba(0,0,0,0.4)', padding: '6px 10px', fontSize: '0.8rem' }}
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Applied">Applied</option>
+                    <option value="Reviewing">Reviewing</option>
+                    <option value="Interviewing">Interviewing</option>
+                    <option value="Offered">Offered</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Job Position:</span>
+                  <select
+                    value={rankingJobFilter}
+                    onChange={(e) => { setRankingJobFilter(e.target.value); setAppsPage(1); }}
+                    style={{ ...styles.statusSelect, width: 'auto', background: 'rgba(0,0,0,0.4)', padding: '6px 10px', fontSize: '0.8rem' }}
+                  >
+                    <option value="All">All Jobs</option>
+                    {Array.from(new Set(applications.map(a => a.jobTitle))).map(jt => (
+                      <option key={jt} value={jt}>{jt}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {getRankedApplications().length === 0 ? (
+              <div style={styles.emptyMsg}>No candidate applications match the selected ranking filters.</div>
+            ) : (
+              <div style={styles.tableWrapper}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr style={styles.tableHeaderRow}>
+                      <th style={{ ...styles.th, width: '70px', textAlign: 'center' }}>Rank</th>
+                      <th style={styles.th}>Candidate</th>
+                      <th style={styles.th}>Job Title</th>
+                      <th style={styles.th}>AI Fit Score</th>
+                      <th style={styles.th}>Resume</th>
+                      <th style={styles.th}>Status</th>
+                      <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getRankedApplications().slice((appsPage - 1) * pageSize, appsPage * pageSize).map((app, pageIdx) => {
+                      const globalRank = (appsPage - 1) * pageSize + pageIdx + 1;
+                      const recBadge = getRecommendationBadge(app.matchingScore);
+
+                      return (
+                        <React.Fragment key={app.id}>
+                          <tr style={styles.tr}>
+                            <td style={{ ...styles.td, textAlign: 'center' }}>
+                              <span style={{ 
+                                fontWeight: 'bold', 
+                                fontSize: '0.9rem', 
+                                color: globalRank === 1 ? '#f59e0b' : globalRank === 2 ? '#94a3b8' : globalRank === 3 ? '#b45309' : '#64748b' 
+                              }}>
+                                {globalRank === 1 ? '🏆 #1' : globalRank === 2 ? '🥈 #2' : globalRank === 3 ? '🥉 #3' : `#${globalRank}`}
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <strong>{app.candidateName}</strong>
+                                <div>
+                                  <span className={`badge ${recBadge.badgeClass}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                                    {recBadge.label}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
                         <td style={styles.td}>{app.jobTitle}</td>
                         <td style={styles.td}>
                           <span className={`badge ${app.matchingScore >= 80 ? 'badge-green' : app.matchingScore >= 60 ? 'badge-purple' : 'badge-orange'}`}>
@@ -936,6 +1104,14 @@ export const RecruiterDashboard: React.FC = () => {
                         </td>
                         <td style={{ ...styles.td, textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '16px' }}>
                           <button
+                            type="button"
+                            onClick={() => handleGenerateAiQuestions(app)}
+                            className="btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#00f2fe', color: '#00f2fe' }}
+                          >
+                            ⚡ AI Questions
+                          </button>
+                          <button
                             onClick={() => setSchedulingApp(app)}
                             className="btn-primary"
                             style={{ padding: '6px 12px', fontSize: '0.8rem' }}
@@ -947,7 +1123,7 @@ export const RecruiterDashboard: React.FC = () => {
                       </tr>
                       {/* Expanded View for AI Report and Cover Letter */}
                       <tr>
-                        <td colSpan={6} style={{ padding: '0 24px 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <td colSpan={7} style={{ padding: '0 24px 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                           <div style={styles.appDetailsBox}>
                             <div style={{ flex: 1 }}>
                               <h5 style={styles.boxTitle}>Cover Letter</h5>
@@ -1041,16 +1217,17 @@ export const RecruiterDashboard: React.FC = () => {
                         </td>
                       </tr>
                     </React.Fragment>
-                  ))}
+                    )})}
                 </tbody>
               </table>
               <Pagination 
                 currentPage={appsPage} 
-                totalPages={Math.ceil(applications.length / pageSize)} 
+                totalPages={Math.ceil(getRankedApplications().length / pageSize)} 
                 onPageChange={setAppsPage} 
               />
             </div>
           )}
+        </div>
         </div>
       )}
 
@@ -1477,6 +1654,129 @@ export const RecruiterDashboard: React.FC = () => {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI INTERVIEW QUESTION GENERATOR MODAL */}
+      {aiGenAppModal && (
+        <div style={styles.modalOverlay}>
+          <div className="glass-panel" style={{ ...styles.modal, maxWidth: '750px', width: '90%', maxHeight: '85vh', overflowY: 'auto', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#00f2fe', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>⚡</span> AI Interview Questions Generator
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                  Targeted questions for <strong>{aiGenAppModal.candidateName}</strong> — Position: <strong>{aiGenAppModal.jobTitle}</strong>
+                </span>
+              </div>
+              <button onClick={() => setAiGenAppModal(null)} style={styles.closeBtn}>×</button>
+            </div>
+
+            {loadingAiGenQuestions ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <div className="animate-spin" style={{ width: '40px', height: '40px', border: '3px solid rgba(0,242,254,0.2)', borderTopColor: '#00f2fe', borderRadius: '50%', margin: '0 auto 16px auto' }} />
+                <h4 style={{ color: '#fff', margin: '0 0 8px 0' }}>Generating AI Interview Questions...</h4>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>Analyzing candidate resume text, profile technical skills, and job requirements...</p>
+              </div>
+            ) : aiGenQuestionsResult ? (
+              <div>
+                {/* 1. Technical Questions (10) */}
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#00f2fe', fontSize: '0.95rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>💻</span> Technical Questions (10)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {(aiGenQuestionsResult.technicalQuestions || aiGenQuestionsResult.questions?.filter((q: any) => q.category === 'Technical') || []).map((q: any, idx: number) => (
+                      <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px 14px' }}>
+                        <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
+                        {q.rationale && <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>🎯 Rationale: {q.rationale}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. HR Questions (5) */}
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#8b5cf6', fontSize: '0.95rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>👥</span> HR & Behavioral Questions (5)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {(aiGenQuestionsResult.hrQuestions || aiGenQuestionsResult.questions?.filter((q: any) => q.category === 'HR') || []).map((q: any, idx: number) => (
+                      <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px 14px' }}>
+                        <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
+                        {q.rationale && <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>🎯 Rationale: {q.rationale}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Scenario Questions (3) */}
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ color: '#f59e0b', fontSize: '0.95rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎯</span> Real-World Scenario Questions (3)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {(aiGenQuestionsResult.scenarioQuestions || aiGenQuestionsResult.questions?.filter((q: any) => q.category === 'Scenario') || []).map((q: any, idx: number) => (
+                      <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px 14px' }}>
+                        <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
+                        {q.rationale && <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>🎯 Rationale: {q.rationale}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {savingQuestionsNotice && (
+                  <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid #22c55e', color: '#4ade80', padding: '8px 12px', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '12px' }}>
+                    ✓ Questions saved successfully to Recruiter Evaluations.
+                  </div>
+                )}
+
+                {/* Modal Footer Controls */}
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateAiQuestions(aiGenAppModal)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px', borderColor: '#8b5cf6', color: '#c084fc' }}
+                  >
+                    🔄 Regenerate Questions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const questionsJson = JSON.stringify(aiGenQuestionsResult);
+                      await apiRequest(`/applications/${aiGenAppModal.id}/notes`, 'PUT', {
+                        notes: (aiGenAppModal.recruiterNotes ? aiGenAppModal.recruiterNotes + '\n\n' : '') + '[SAVED AI QUESTIONS]:\n' + JSON.stringify(aiGenQuestionsResult.questions || [], null, 2)
+                      });
+                      setSavingQuestionsNotice(true);
+                    }}
+                    className="btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                  >
+                    💾 Save Questions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiGenAppModal(null)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+                Failed to load questions. Please click Regenerate.
+                <div style={{ marginTop: '12px' }}>
+                  <button onClick={() => handleGenerateAiQuestions(aiGenAppModal)} className="btn-primary" style={{ fontSize: '0.8rem' }}>
+                    🔄 Try Again
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

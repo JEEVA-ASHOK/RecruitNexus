@@ -141,6 +141,72 @@ System Overview Statistics:
             return Ok(new TranslationResponse { TranslatedText = translatedText });
         }
 
+        [HttpPost("generate-questions")]
+        [Authorize(Roles = "Recruiter,Admin")]
+        public async Task<IActionResult> GenerateQuestions([FromBody] GenerateQuestionsRequest request)
+        {
+            if (request == null || request.ApplicationId <= 0)
+            {
+                return BadRequest(new { message = "Valid ApplicationId is required." });
+            }
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .Include(a => a.Candidate)
+                .ThenInclude(c => c!.Profile)
+                .FirstOrDefaultAsync(a => a.Id == request.ApplicationId);
+
+            if (application == null || application.Job == null)
+            {
+                return NotFound(new { message = "Application or associated job not found." });
+            }
+
+            string resumeText = string.Empty;
+            if (application.Candidate?.Profile != null)
+            {
+                string resumePath = application.Candidate.Profile.ResumePath ?? string.Empty;
+                if (!string.IsNullOrEmpty(resumePath))
+                {
+                    try
+                    {
+                        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", resumePath);
+                        if (System.IO.File.Exists(fullPath))
+                        {
+                            using var pdf = UglyToad.PdfPig.PdfDocument.Open(fullPath);
+                            var textBuilder = new StringBuilder();
+                            foreach (var page in pdf.GetPages())
+                            {
+                                textBuilder.AppendLine(page.Text);
+                            }
+                            resumeText = textBuilder.ToString();
+                        }
+                    }
+                    catch { }
+                }
+
+                if (string.IsNullOrEmpty(resumeText))
+                {
+                    resumeText = $"Candidate Bio: {application.Candidate.Profile.Bio}. Skills: {application.Candidate.Profile.Skills}. Experience: {application.Candidate.Profile.ExperienceYears} years.";
+                }
+            }
+
+            try
+            {
+                var result = await _geminiService.GenerateInterviewQuestionsAsync(
+                    resumeText,
+                    application.Job.Title ?? "Position",
+                    application.Job.Description ?? string.Empty,
+                    application.Job.Requirements ?? string.Empty
+                );
+
+                return Ok(result);
+            }
+            catch (Exception)
+            {
+                return Ok(new InterviewQuestionsResult());
+            }
+        }
+
         private int GetUserId()
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier);

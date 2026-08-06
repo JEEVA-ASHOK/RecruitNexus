@@ -33,6 +33,7 @@ namespace backend.Services
 
     public class InterviewQuestionItem
     {
+        public string Category { get; set; } = "Technical"; // Technical, HR, Scenario
         public string QuestionText { get; set; } = string.Empty;
         public string Rationale { get; set; } = string.Empty;
     }
@@ -40,6 +41,9 @@ namespace backend.Services
     public class InterviewQuestionsResult
     {
         public InterviewQuestionItem[] Questions { get; set; } = Array.Empty<InterviewQuestionItem>();
+        public InterviewQuestionItem[] TechnicalQuestions { get; set; } = Array.Empty<InterviewQuestionItem>();
+        public InterviewQuestionItem[] HrQuestions { get; set; } = Array.Empty<InterviewQuestionItem>();
+        public InterviewQuestionItem[] ScenarioQuestions { get; set; } = Array.Empty<InterviewQuestionItem>();
     }
 
     public class GeminiService : IGeminiService
@@ -148,24 +152,31 @@ Candidate Resume:
                 return GetMockQuestions();
             }
 
-            string prompt = $@"Given the candidate's resume/profile details and the job requirements, generate exactly 5 targeted interview questions (a mix of technical skill checks and behavioral inquiries) along with the rationale or focus of each question.
-Output MUST be a JSON object matching this schema EXACTLY:
+            string prompt = $@"Given the candidate's resume/profile details and the job requirements, generate interview questions categorized into three distinct sets:
+1. 10 Technical Questions checking core skills, code architecture, and database/web principles.
+2. 5 HR Questions evaluating behavioral competence, teamwork, and cultural fit.
+3. 3 Scenario Questions evaluating real-world problem solving under pressure.
+
+Output MUST be a raw JSON object matching this schema EXACTLY:
 {{
-  ""Questions"": [
-    {{
-      ""QuestionText"": ""string"",
-      ""Rationale"": ""string""
-    }}
+  ""TechnicalQuestions"": [
+    {{ ""Category"": ""Technical"", ""QuestionText"": ""string"", ""Rationale"": ""string"" }}
+  ],
+  ""HrQuestions"": [
+    {{ ""Category"": ""HR"", ""QuestionText"": ""string"", ""Rationale"": ""string"" }}
+  ],
+  ""ScenarioQuestions"": [
+    {{ ""Category"": ""Scenario"", ""QuestionText"": ""string"", ""Rationale"": ""string"" }}
   ]
 }}
-Do not include any markdown formatting wrappers, just return the raw JSON structure.
+Do not include any markdown formatting wrappers (like ```json), just return raw JSON structure.
 
 Job Details:
 Title: {jobTitle}
 Description: {jobDescription}
 Requirements: {jobRequirements}
 
-Candidate Resume:
+Candidate Resume / Profile Details:
 {resumeText}";
 
             try
@@ -175,7 +186,18 @@ Candidate Resume:
                 {
                     PropertyNameCaseInsensitive = true
                 });
-                return result ?? GetMockQuestions();
+                
+                if (result != null && (result.TechnicalQuestions.Length > 0 || result.HrQuestions.Length > 0 || result.ScenarioQuestions.Length > 0))
+                {
+                    var allList = new List<InterviewQuestionItem>();
+                    allList.AddRange(result.TechnicalQuestions);
+                    allList.AddRange(result.HrQuestions);
+                    allList.AddRange(result.ScenarioQuestions);
+                    result.Questions = allList.ToArray();
+                    return result;
+                }
+
+                return GetMockQuestions();
             }
             catch (Exception ex)
             {
@@ -252,16 +274,47 @@ Candidate Resume:
 
         private InterviewQuestionsResult GetMockQuestions()
         {
+            var tech = new[]
+            {
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "1. Can you explain the difference between value types and reference types in C# / .NET?", Rationale = "Assesses core language runtime memory allocation understanding." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "2. How do you optimize Entity Framework Core queries to avoid N+1 query execution problems?", Rationale = "Evaluates database ORM performance tuning techniques." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "3. Describe how Virtual DOM diffing works in React 18.", Rationale = "Tests core frontend framework rendering concepts." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "4. How do you implement CORS policies securely in an ASP.NET Core REST API?", Rationale = "Evaluates web security configuration knowledge." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "5. What is the difference between scoped, transient, and singleton service lifetimes in Dependency Injection?", Rationale = "Verifies understanding of inversion of control and object lifecycles." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "6. How do you handle database transaction concurrency conflicts in SQL / MySQL?", Rationale = "Evaluates database ACID transaction management." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "7. What are the key performance benefits of using TypeScript interfaces over plain JavaScript objects?", Rationale = "Tests type safety and compile-time optimization knowledge." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "8. Explain how JWT bearer tokens are validated statically without database lookups.", Rationale = "Tests stateless authentication token security principles." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "9. How do you implement asynchronous non-blocking I/O using async/await in C#?", Rationale = "Evaluates multi-threaded web API throughput capabilities." },
+                new InterviewQuestionItem { Category = "Technical", QuestionText = "10. What strategies do you use for REST API payload validation and error handling?", Rationale = "Assesses API design consistency and DTO validation patterns." }
+            };
+
+            var hr = new[]
+            {
+                new InterviewQuestionItem { Category = "HR", QuestionText = "1. Tell us about a time you had to handle conflicting priorities under tight project deadlines.", Rationale = "Evaluates stress management and time prioritization." },
+                new InterviewQuestionItem { Category = "HR", QuestionText = "2. How do you approach receiving constructive feedback on your code during peer reviews?", Rationale = "Measures team collaboration and growth mindset." },
+                new InterviewQuestionItem { Category = "HR", QuestionText = "3. Why are you interested in joining our company and working on this specific tech stack?", Rationale = "Assesses candidate motivation and company alignment." },
+                new InterviewQuestionItem { Category = "HR", QuestionText = "4. Describe a scenario where you had to explain a complex technical concept to a non-technical stakeholder.", Rationale = "Evaluates communication and stakeholder management skills." },
+                new InterviewQuestionItem { Category = "HR", QuestionText = "5. What environment or team culture enables you to perform at your best?", Rationale = "Assesses cultural fit and workplace preferences." }
+            };
+
+            var scenario = new[]
+            {
+                new InterviewQuestionItem { Category = "Scenario", QuestionText = "1. If a production API endpoint suddenly experiences 504 Gateway Timeouts during peak traffic, what step-by-step diagnostic process would you follow?", Rationale = "Evaluates real-world incident response and debugging methodology." },
+                new InterviewQuestionItem { Category = "Scenario", QuestionText = "2. Imagine a third-party payment or AI API service goes down completely. How would you design the application fallback behavior?", Rationale = "Tests fault tolerance and graceful degradation engineering." },
+                new InterviewQuestionItem { Category = "Scenario", QuestionText = "3. If a database migration locks a production table holding millions of records, how would you resolve the lock safely?", Rationale = "Evaluates database administration and zero-downtime deployment strategies." }
+            };
+
+            var all = new List<InterviewQuestionItem>();
+            all.AddRange(tech);
+            all.AddRange(hr);
+            all.AddRange(scenario);
+
             return new InterviewQuestionsResult
             {
-                Questions = new[]
-                {
-                    new InterviewQuestionItem { QuestionText = "Can you describe a challenging project you built using C# or React and how you solved technical difficulties?", Rationale = "Assesses direct experience with our core stack." },
-                    new InterviewQuestionItem { QuestionText = "How do you optimize SQL database queries for heavy read operations?", Rationale = "Evaluates backend performance and database understanding." },
-                    new InterviewQuestionItem { QuestionText = "What is your approach to handling cross-origin resource sharing (CORS) in web applications?", Rationale = "Tests core web infrastructure knowledge." },
-                    new InterviewQuestionItem { QuestionText = "Describe a situation where you had to collaborate with a cross-functional team under tight deadlines.", Rationale = "Evaluates soft skills and behavioral competence." },
-                    new InterviewQuestionItem { QuestionText = "How do you stay up-to-date with new technologies and frameworks?", Rationale = "Measures passion and continuous learning mindset." }
-                }
+                Questions = all.ToArray(),
+                TechnicalQuestions = tech,
+                HrQuestions = hr,
+                ScenarioQuestions = scenario
             };
         }
 
