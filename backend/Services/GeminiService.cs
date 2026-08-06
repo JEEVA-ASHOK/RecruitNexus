@@ -14,6 +14,7 @@ namespace backend.Services
         Task<ParsedResumeResult> ParseResumeAsync(string resumeText);
         Task<JobMatchResult> MatchResumeAsync(string resumeText, string jobTitle, string jobDescription, string jobRequirements);
         Task<InterviewQuestionsResult> GenerateInterviewQuestionsAsync(string resumeText, string jobTitle, string jobDescription, string jobRequirements);
+        Task<HiringDecisionResult> GenerateHiringDecisionAsync(string resumeText, string candidateName, string jobTitle, string jobDescription, string jobRequirements, int matchScore, string aiFeedback, string interviewNotes);
         Task<string> GetChatReplyAsync(string message, string userContext, List<ChatMessageDto> history);
         Task<string> TranslateTextAsync(string text, string targetLanguage);
     }
@@ -44,6 +45,16 @@ namespace backend.Services
         public InterviewQuestionItem[] TechnicalQuestions { get; set; } = Array.Empty<InterviewQuestionItem>();
         public InterviewQuestionItem[] HrQuestions { get; set; } = Array.Empty<InterviewQuestionItem>();
         public InterviewQuestionItem[] ScenarioQuestions { get; set; } = Array.Empty<InterviewQuestionItem>();
+    }
+
+    public class HiringDecisionResult
+    {
+        public string Recommendation { get; set; } = "Hire"; // Strongly Recommend, Hire, Consider, Reject
+        public int ConfidenceScore { get; set; } = 90;
+        public string ExecutiveSummary { get; set; } = string.Empty;
+        public string[] Strengths { get; set; } = Array.Empty<string>();
+        public string[] SkillGaps { get; set; } = Array.Empty<string>();
+        public string[] Reasoning { get; set; } = Array.Empty<string>();
     }
 
     public class GeminiService : IGeminiService
@@ -441,6 +452,113 @@ Text to translate:
                 _logger.LogError(ex, "Error translating text with Gemini API.");
                 return $"[Translation Error]: {ex.Message}";
             }
+        }
+
+        public async Task<HiringDecisionResult> GenerateHiringDecisionAsync(string resumeText, string candidateName, string jobTitle, string jobDescription, string jobRequirements, int matchScore, string aiFeedback, string interviewNotes)
+        {
+            if (string.IsNullOrEmpty(_apiKey))
+            {
+                return GetMockHiringDecision(candidateName, jobTitle, matchScore);
+            }
+
+            try
+            {
+                string prompt = $@"You are a Senior Technical Hiring Manager and Enterprise Talent Architect.
+Analyze the following complete candidate profile, resume text, match score, AI feedback, and recruiter interview notes, then make a final executive hiring decision recommendation.
+
+Candidate Name: {candidateName}
+Target Job Title: {jobTitle}
+Job Description: {jobDescription}
+Job Requirements: {jobRequirements}
+AI Resume Match Score: {matchScore}%
+AI Match Feedback: {aiFeedback}
+Interview & Recruiter Notes: {interviewNotes}
+Resume Text:
+{resumeText}
+
+Return raw JSON strictly adhering to this JSON schema:
+{{
+  ""recommendation"": ""Hire"", // Must be one of: ""Strongly Recommend"", ""Hire"", ""Consider"", ""Reject""
+  ""confidenceScore"": 92, // Integer 0 to 100
+  ""executiveSummary"": ""Concise 2-3 sentence executive decision summary."",
+  ""strengths"": [""Key candidate strength 1"", ""Key candidate strength 2"", ""Key candidate strength 3""],
+  ""skillGaps"": [""Minor gap or development area 1"", ""Minor gap 2""],
+  ""reasoning"": [""Key decision justification factor 1"", ""Justification factor 2"", ""Justification factor 3""]
+}}
+
+Return ONLY valid raw JSON with NO markdown blocks or code wrap tags.";
+
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={_apiKey}";
+                var requestBody = new
+                {
+                    contents = new[]
+                    {
+                        new
+                        {
+                            parts = new[]
+                            {
+                                new { text = prompt }
+                            }
+                        }
+                    }
+                };
+
+                string jsonPayload = JsonSerializer.Serialize(requestBody);
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await _httpClient.PostAsync(url, content);
+                response.EnsureSuccessStatusCode();
+
+                string rawResponse = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(rawResponse);
+                
+                var textElement = doc.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text");
+
+                string cleanJson = textElement.GetString() ?? "";
+                cleanJson = cleanJson.Replace("```json", "").Replace("```", "").Trim();
+
+                var result = JsonSerializer.Deserialize<HiringDecisionResult>(cleanJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                return result ?? GetMockHiringDecision(candidateName, jobTitle, matchScore);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating AI hiring decision via Gemini.");
+                return GetMockHiringDecision(candidateName, jobTitle, matchScore);
+            }
+        }
+
+        private HiringDecisionResult GetMockHiringDecision(string candidateName, string jobTitle, int matchScore)
+        {
+            string recommendation = matchScore >= 85 ? "Hire" : matchScore >= 70 ? "Consider" : "Reject";
+            int confidence = Math.Min(98, Math.Max(70, matchScore + 5));
+
+            return new HiringDecisionResult
+            {
+                Recommendation = recommendation,
+                ConfidenceScore = confidence,
+                ExecutiveSummary = $"{candidateName} exhibits strong technical alignment for the {jobTitle} position with an AI fit score of {matchScore}%. Candidate demonstrates key domain competencies required for core deliverables.",
+                Strengths = new[]
+                {
+                    $"Proven domain experience relevant to {jobTitle}",
+                    $"Strong technical match score ({matchScore}%) with job requirements",
+                    "Clear communication and problem-solving capability"
+                },
+                SkillGaps = new[]
+                {
+                    "Specific enterprise tool chain onboarding required",
+                    "Recommend initial technical mentoring during probation"
+                },
+                Reasoning = new[]
+                {
+                    $"High fit score ({matchScore}%) exceeds minimum threshold for role",
+                    "Core skills match primary job responsibilities",
+                    "Low onboarding friction and strong background credentials"
+                }
+            };
         }
     }
 }

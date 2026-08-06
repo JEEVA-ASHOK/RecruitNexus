@@ -136,6 +136,29 @@ export const RecruiterDashboard: React.FC = () => {
   const [aiGenQuestionsResult, setAiGenQuestionsResult] = useState<any | null>(null);
   const [loadingAiGenQuestions, setLoadingAiGenQuestions] = useState(false);
   const [savingQuestionsNotice, setSavingQuestionsNotice] = useState(false);
+
+  // AI Hiring Decision Assistant Modal state
+  const [aiHiringDecisionModalApp, setAiHiringDecisionModalApp] = useState<Application | null>(null);
+  const [aiHiringDecisionResult, setAiHiringDecisionResult] = useState<any | null>(null);
+  const [loadingAiHiringDecision, setLoadingAiHiringDecision] = useState(false);
+  const [savingDecisionNotice, setSavingDecisionNotice] = useState(false);
+
+  const handleGenerateHiringDecision = async (app: Application) => {
+    setAiHiringDecisionModalApp(app);
+    setAiHiringDecisionResult(null);
+    setLoadingAiHiringDecision(true);
+    setSavingDecisionNotice(false);
+
+    const { data, error } = await apiRequest<any>('/ai/hiring-decision', 'POST', {
+      applicationId: app.id
+    });
+
+    setLoadingAiHiringDecision(false);
+    if (!error && data) {
+      setAiHiringDecisionResult(data);
+    }
+  };
+
   // AI Candidate Ranking Filter States
   const [rankingStatusFilter, setRankingStatusFilter] = useState<string>('All');
   const [rankingRecommendationFilter, setRankingRecommendationFilter] = useState<string>('All');
@@ -1104,6 +1127,14 @@ export const RecruiterDashboard: React.FC = () => {
                         <td style={{ ...styles.td, textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '16px' }}>
                           <button
                             type="button"
+                            onClick={() => handleGenerateHiringDecision(app)}
+                            className="btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#c084fc', color: '#c084fc' }}
+                          >
+                            🧠 AI Decision
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleGenerateAiQuestions(app)}
                             className="btn-secondary"
                             style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#00f2fe', color: '#00f2fe' }}
@@ -1771,6 +1802,164 @@ export const RecruiterDashboard: React.FC = () => {
                 Failed to load questions. Please click Regenerate.
                 <div style={{ marginTop: '12px' }}>
                   <button onClick={() => handleGenerateAiQuestions(aiGenAppModal)} className="btn-primary" style={{ fontSize: '0.8rem' }}>
+                    🔄 Try Again
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AI HIRING DECISION ASSISTANT MODAL */}
+      {aiHiringDecisionModalApp && (
+        <div style={styles.modalOverlay}>
+          <div className="glass-panel" style={{ ...styles.modal, maxWidth: '750px', width: '90%', maxHeight: '85vh', overflowY: 'auto', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#c084fc', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🧠</span> AI Hiring Decision Assistant
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                  Executive hiring decision analysis for <strong>{aiHiringDecisionModalApp.candidateName}</strong> — Position: <strong>{aiHiringDecisionModalApp.jobTitle}</strong>
+                </span>
+              </div>
+              <button onClick={() => setAiHiringDecisionModalApp(null)} style={styles.closeBtn}>×</button>
+            </div>
+
+            {loadingAiHiringDecision ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <div className="animate-spin" style={{ width: '40px', height: '40px', border: '3px solid rgba(192,132,252,0.2)', borderTopColor: '#c084fc', borderRadius: '50%', margin: '0 auto 16px auto' }} />
+                <h4 style={{ color: '#fff', margin: '0 0 8px 0' }}>Synthesizing Candidate Credentials & Evaluations...</h4>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>Evaluating match score, candidate resume, profile technical skills, and interview feedback...</p>
+              </div>
+            ) : aiHiringDecisionResult ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* Header Summary Stats Row */}
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Recommendation</span>
+                    <span className={`badge ${
+                      aiHiringDecisionResult.recommendation?.includes('Hire') || aiHiringDecisionResult.recommendation?.includes('Recommend')
+                        ? (aiHiringDecisionResult.recommendation?.includes('Strongly') ? 'badge-green' : 'badge-purple')
+                        : aiHiringDecisionResult.recommendation?.includes('Consider') ? 'badge-orange' : 'badge-red'
+                    }`} style={{ fontSize: '0.95rem', padding: '4px 12px', marginTop: '4px', fontWeight: 'bold' }}>
+                      {aiHiringDecisionResult.recommendation || 'Hire'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Confidence Score</span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#00f2fe' }}>
+                      {aiHiringDecisionResult.confidenceScore || 90}% Confidence
+                    </span>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>AI Match Fit</span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>
+                      {aiHiringDecisionModalApp.matchingScore}% Fit
+                    </span>
+                  </div>
+                </div>
+
+                {/* Executive Summary */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ color: '#00f2fe', fontSize: '0.9rem', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    📋 Executive Summary
+                  </h4>
+                  <p style={{ color: '#e2e8f0', fontSize: '0.88rem', lineHeight: '1.6', margin: 0 }}>
+                    {aiHiringDecisionResult.executiveSummary}
+                  </p>
+                </div>
+
+                {/* Grid: Strengths & Skill Gaps */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {/* Key Strengths */}
+                  <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '10px', padding: '14px' }}>
+                    <h4 style={{ color: '#10b981', fontSize: '0.85rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>✓</span> Key Candidate Strengths
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#cbd5e1', fontSize: '0.82rem', lineHeight: '1.5' }}>
+                      {(aiHiringDecisionResult.strengths || []).map((s: string, idx: number) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Skill Gaps */}
+                  <div style={{ background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '10px', padding: '14px' }}>
+                    <h4 style={{ color: '#f59e0b', fontSize: '0.85rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>⚠️</span> Potential Skill Gaps / Onboarding Areas
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#cbd5e1', fontSize: '0.82rem', lineHeight: '1.5' }}>
+                      {(aiHiringDecisionResult.skillGaps || []).map((g: string, idx: number) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{g}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Recommendation Reasoning */}
+                <div style={{ background: 'rgba(139, 92, 246, 0.05)', border: '1px solid rgba(139, 92, 246, 0.2)', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ color: '#c084fc', fontSize: '0.88rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎯</span> Recommendation Reasoning & Justification
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {(aiHiringDecisionResult.reasoning || []).map((r: string, idx: number) => (
+                      <div key={idx} style={{ color: '#e2e8f0', fontSize: '0.83rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <span style={{ color: '#c084fc', fontWeight: 'bold' }}>•</span>
+                        <span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {savingDecisionNotice && (
+                  <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid #22c55e', color: '#4ade80', padding: '8px 12px', borderRadius: '6px', fontSize: '0.8rem' }}>
+                    ✓ Executive Hiring Decision saved successfully to Recruiter Candidate Notes.
+                  </div>
+                )}
+
+                {/* Modal Actions */}
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateHiringDecision(aiHiringDecisionModalApp)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px', borderColor: '#c084fc', color: '#c084fc' }}
+                  >
+                    🔄 Regenerate Analysis
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const summaryNote = `[AI HIRING DECISION SUMMARY]:\nRecommendation: ${aiHiringDecisionResult.recommendation}\nConfidence: ${aiHiringDecisionResult.confidenceScore}%\nExecutive Summary: ${aiHiringDecisionResult.executiveSummary}`;
+                      await apiRequest(`/applications/${aiHiringDecisionModalApp.id}/notes`, 'PUT', {
+                        notes: (aiHiringDecisionModalApp.recruiterNotes ? aiHiringDecisionModalApp.recruiterNotes + '\n\n' : '') + summaryNote
+                      });
+                      setSavingDecisionNotice(true);
+                    }}
+                    className="btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                  >
+                    💾 Save Decision to Notes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiHiringDecisionModalApp(null)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+                Failed to generate hiring decision report.
+                <div style={{ marginTop: '12px' }}>
+                  <button onClick={() => handleGenerateHiringDecision(aiHiringDecisionModalApp)} className="btn-primary" style={{ fontSize: '0.8rem' }}>
                     🔄 Try Again
                   </button>
                 </div>

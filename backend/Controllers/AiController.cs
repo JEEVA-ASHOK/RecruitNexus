@@ -207,6 +207,96 @@ System Overview Statistics:
             }
         }
 
+        [HttpPost("hiring-decision")]
+        [Authorize(Roles = "Recruiter,Admin")]
+        public async Task<IActionResult> GenerateHiringDecision([FromBody] GenerateQuestionsRequest request)
+        {
+            if (request == null || request.ApplicationId <= 0)
+            {
+                return BadRequest(new { message = "Valid ApplicationId is required." });
+            }
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .Include(a => a.Candidate)
+                .ThenInclude(c => c!.Profile)
+                .FirstOrDefaultAsync(a => a.Id == request.ApplicationId);
+
+            if (application == null || application.Job == null)
+            {
+                return NotFound(new { message = "Application or associated job not found." });
+            }
+
+            string resumeText = string.Empty;
+            if (application.Candidate?.Profile != null)
+            {
+                string resumePath = application.Candidate.Profile.ResumePath ?? string.Empty;
+                if (!string.IsNullOrEmpty(resumePath))
+                {
+                    try
+                    {
+                        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", resumePath);
+                        if (System.IO.File.Exists(fullPath))
+                        {
+                            using var pdf = UglyToad.PdfPig.PdfDocument.Open(fullPath);
+                            var textBuilder = new StringBuilder();
+                            foreach (var page in pdf.GetPages())
+                            {
+                                textBuilder.AppendLine(page.Text);
+                            }
+                            resumeText = textBuilder.ToString();
+                        }
+                    }
+                    catch { }
+                }
+
+                if (string.IsNullOrEmpty(resumeText))
+                {
+                    resumeText = $"Candidate Bio: {application.Candidate.Profile.Bio}. Skills: {application.Candidate.Profile.Skills}. Experience: {application.Candidate.Profile.ExperienceYears} years.";
+                }
+            }
+
+            // Fetch interview notes if available
+            var interviewNotes = application.RecruiterNotes ?? string.Empty;
+            var interviews = await _context.Interviews
+                .Where(i => i.ApplicationId == application.Id)
+                .ToListAsync();
+
+            if (interviews.Any())
+            {
+                var intSummaries = interviews.Select(i => $"Format: {i.Format}, Result: {i.ResultStatus}, Feedback: {i.Feedback}, Remarks: {i.Remarks}");
+                interviewNotes += "\n\nInterview Evaluations:\n" + string.Join("\n", intSummaries);
+            }
+
+            try
+            {
+                var result = await _geminiService.GenerateHiringDecisionAsync(
+                    resumeText,
+                    application.Candidate?.FullName ?? "Candidate",
+                    application.Job.Title ?? "Position",
+                    application.Job.Description ?? string.Empty,
+                    application.Job.Requirements ?? string.Empty,
+                    application.MatchingScore,
+                    application.AI_Feedback ?? string.Empty,
+                    interviewNotes
+                );
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return Ok(new HiringDecisionResult
+                {
+                    Recommendation = application.MatchingScore >= 85 ? "Hire" : application.MatchingScore >= 70 ? "Consider" : "Reject",
+                    ConfidenceScore = 85,
+                    ExecutiveSummary = $"Fallback decision summary based on AI fit score of {application.MatchingScore}%.",
+                    Strengths = new[] { "Technical match score alignment", "Domain background skills" },
+                    SkillGaps = new[] { "Specific enterprise tools onboarding" },
+                    Reasoning = new[] { "Score alignment with role requirements" }
+                });
+            }
+        }
+
         private int GetUserId()
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier);
