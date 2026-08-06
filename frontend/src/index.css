@@ -1,13 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-:root {
-  --bg-primary: #0a0b10;
-  --bg-secondary: #121420;
-  --glass-bg: rgba(18, 20, 32, 0.65);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-border-hover: rgba(0, 242, 254, 0.2);
+:root, [data-theme="dark"] {
+  --bg-primary: #0F172A;
+  --bg-secondary: #1E293B;
+  --glass-bg: rgba(30, 41, 59, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(0, 242, 254, 0.3);
   
-  --text-primary: #f8fafc;
+  --text-primary: #F8FAFC;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   
@@ -22,6 +22,21 @@
   
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] {
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #F1F5F9;
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-hover: rgba(0, 242, 254, 0.4);
+  
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  
+  --shadow-glow: 0 4px 20px rgba(0, 242, 254, 0.15);
+  --shadow-glow-hover: 0 8px 30px rgba(0, 242, 254, 0.25);
 }
 
 * {

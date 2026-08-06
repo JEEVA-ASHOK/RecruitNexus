@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Palette, X, Clock } from 'lucide-react';
+import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Palette, X, Clock, Sun, Moon } from 'lucide-react';
 import { t } from '../i18n';
 import { apiRequest } from '../api';
 import { NotificationCenter } from './NotificationCenter';
@@ -12,6 +12,41 @@ export const NavBar: React.FC = () => {
   const [lang, setLang] = useState(localStorage.getItem('portalLang') || 'English');
   const [showRgbCustomizer, setShowRgbCustomizer] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', themeMode);
+    localStorage.setItem('theme', themeMode);
+
+    if (themeMode === 'light') {
+      document.documentElement.style.setProperty('--bg-primary', '#F8FAFC');
+      document.documentElement.style.setProperty('--bg-secondary', '#F1F5F9');
+      document.documentElement.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.75)');
+      document.documentElement.style.setProperty('--glass-border', 'rgba(0, 0, 0, 0.08)');
+      document.documentElement.style.setProperty('--text-primary', '#0F172A');
+      document.documentElement.style.setProperty('--text-secondary', '#475569');
+      document.documentElement.style.setProperty('--text-muted', '#64748b');
+      document.body.style.backgroundColor = '#F8FAFC';
+    } else {
+      document.documentElement.style.setProperty('--bg-primary', '#0F172A');
+      document.documentElement.style.setProperty('--bg-secondary', '#1E293B');
+      document.documentElement.style.setProperty('--glass-bg', 'rgba(30, 41, 59, 0.65)');
+      document.documentElement.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.08)');
+      document.documentElement.style.setProperty('--text-primary', '#F8FAFC');
+      document.documentElement.style.setProperty('--text-secondary', '#94a3b8');
+      document.documentElement.style.setProperty('--text-muted', '#64748b');
+      document.body.style.backgroundColor = '#0F172A';
+    }
+  }, [themeMode]);
+
+  const toggleThemeMode = () => {
+    setThemeMode(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   const [navApplications, setNavApplications] = useState<any[]>([]);
   const [navInterviews, setNavInterviews] = useState<any[]>([]);
@@ -348,6 +383,39 @@ export const NavBar: React.FC = () => {
               <option value="Japanese">Japanese (日本語)</option>
             </select>
           </div>
+
+          {/* THEME MODE TOGGLE BUTTON */}
+          <button
+            onClick={toggleThemeMode}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--glass-bg-override, rgba(255,255,255,0.03))',
+              border: '1px solid var(--glass-border)',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              color: 'var(--text-primary)',
+              fontSize: '0.78rem',
+              fontWeight: '600',
+              fontFamily: "'Inter', sans-serif",
+              transition: 'all 0.2s ease',
+            }}
+            title={`Switch to ${themeMode === 'dark' ? 'Light' : 'Dark'} Mode`}
+          >
+            {themeMode === 'dark' ? (
+              <>
+                <Moon size={14} color="#00f2fe" />
+                <span>🌙 Dark</span>
+              </>
+            ) : (
+              <>
+                <Sun size={14} color="#f59e0b" />
+                <span>☀️ Light</span>
+              </>
+            )}
+          </button>
           
           {/* USER PROFILE SECTION */}
           {user ? (
