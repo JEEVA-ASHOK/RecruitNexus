@@ -4,6 +4,7 @@ import { apiRequest } from '../api';
 import { Plus, Briefcase, FileText, Calendar, Send, ShieldAlert, CheckCircle2, User, Award, Clock, X, Eye, BarChart3, Users, TrendingUp } from 'lucide-react';
 import { Translate } from '../components/Translate';
 import { t } from '../i18n';
+import { useLanguage } from '../context/LanguageContext';
 import { DashboardCard } from '../components/DashboardCard';
 import { Pagination } from '../components/Pagination';
 
@@ -28,25 +29,27 @@ interface Application {
   candidateName: string;
   coverLetter: string;
   resumePath: string;
-  status: string;
   matchingScore: number;
-  ai_Feedback: string;
-  appliedAt: string;
+  ai_Questions?: string;
+  ai_Feedback?: string;
   recruiterNotes?: string;
+  status: string;
+  appliedAt: string;
   offerLetterContent?: string;
   offerStatus?: string;
 }
 
 interface Interview {
   id: number;
-  jobTitle: string;
+  applicationId: number;
   candidateName: string;
+  jobTitle: string;
   interviewDate: string;
-  format: string;
-  meetingLink: string;
-  notes: string;
-  ai_Questions: string; // Store generated questions
   status: string;
+  meetingLink?: string;
+  notes?: string;
+  format?: string;
+  ai_Questions?: string;
   hrName?: string;
   hrEmail?: string;
   hrPhone?: string;
@@ -63,6 +66,7 @@ interface Interview {
 }
 
 export const RecruiterDashboard: React.FC = () => {
+  const { language } = useLanguage();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [interviews, setInterviews] = useState<Interview[]>([]);
@@ -747,28 +751,28 @@ export const RecruiterDashboard: React.FC = () => {
       {/* Recruiter Stats Cards */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginBottom: '24px' }}>
         <DashboardCard 
-          title="Total Openings" 
+          title={t('recruiter.total_jobs')} 
           value={jobs.length} 
           subtext="Total created vacancies" 
           icon={<Briefcase size={20} />} 
           accentColor="var(--accent-cyan)"
         />
         <DashboardCard 
-          title="Active Positions" 
+          title={t('jobs.status_active')} 
           value={jobs.filter(j => j.status === 'Open').length} 
           subtext="Positions open for applications" 
           icon={<Clock size={20} />} 
           accentColor="#10b981"
         />
         <DashboardCard 
-          title="Applications" 
+          title={t('recruiter.total_applications')} 
           value={applications.length} 
           subtext="Resumes received pipeline" 
           icon={<FileText size={20} />} 
           accentColor="var(--accent-blue)"
         />
         <DashboardCard 
-          title="Interviews Today" 
+          title={t('recruiter.active_interviews')} 
           value={interviews.filter(i => new Date(i.interviewDate).toDateString() === new Date().toDateString()).length} 
           subtext="Scheduled for today" 
           icon={<Calendar size={20} />} 
@@ -788,29 +792,29 @@ export const RecruiterDashboard: React.FC = () => {
           <div className="glass-panel" style={styles.card}>
             <div style={styles.cardHeader}>
               <Plus size={20} color="#00f2fe" />
-              <h2 style={styles.cardTitle}>Post a New Job</h2>
+              <h2 style={styles.cardTitle}>{t('jobs.post_new')}</h2>
             </div>
             
             <form onSubmit={handlePostJob} style={styles.form}>
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Job Title</label>
+                <label style={styles.formLabel}>{t('jobs.title')}</label>
                 <input
                   type="text"
                   required
                   className="glass-input"
-                  placeholder="e.g. Senior Software Engineer (C#/React)"
+                  placeholder={t('jobs.title')}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
 
               <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Company Name</label>
+                <label style={styles.formLabel}>{t('jobs.company_name')}</label>
                 <input
                   type="text"
                   required
                   className="glass-input"
-                  placeholder="e.g. Google, Microsoft, Zoho, or your Agency Name"
+                  placeholder={t('jobs.company_name')}
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                 />
@@ -1166,7 +1170,7 @@ export const RecruiterDashboard: React.FC = () => {
                                   {app.matchingScore}% Match Score
                                 </span>
                               </div>
-                              <p style={styles.boxText}><Translate text={app.ai_Feedback} /></p>
+                              <p style={styles.boxText}><Translate text={app.ai_Feedback || ''} /></p>
                               
                               {/* Optional Skills Breakdown */}
                               {(() => {
@@ -2704,7 +2708,7 @@ export const RecruiterDashboard: React.FC = () => {
             </div>
 
             <div style={styles.modalQuestionsList}>
-              {parseAiQuestions(viewingQuestionsInt.ai_Questions).map((q, idx) => (
+              {parseAiQuestions(viewingQuestionsInt.ai_Questions || '').map((q, idx) => (
                 <div key={idx} style={styles.qItem} className="glass-panel">
                   <div style={styles.qNum}>Question {idx + 1}</div>
                   <p style={styles.qText}><Translate text={q.questionText} /></p>

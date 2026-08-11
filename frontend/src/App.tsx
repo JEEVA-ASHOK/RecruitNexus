@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { LanguageProvider } from './context/LanguageContext';
 import { NavBar } from './components/NavBar';
 import { JobListings } from './pages/JobListings';
 import { Login } from './pages/Login';
@@ -39,8 +40,9 @@ const DashboardDispatcher: React.FC = () => {
 
 function App() {
   return (
-    <Router>
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden' }}>
+    <LanguageProvider>
+      <Router>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden' }}>
         <div className="rgb-blob rgb-blob-1"></div>
         <div className="rgb-blob rgb-blob-2"></div>
         <div className="rgb-blob rgb-blob-3"></div>
@@ -83,6 +85,7 @@ function App() {
         <GoogleLensTranslator />
       </div>
     </Router>
+    </LanguageProvider>
   );
 }
 

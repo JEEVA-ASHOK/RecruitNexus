@@ -205,7 +205,7 @@ export const NavBar: React.FC = () => {
     const selected = e.target.value;
     localStorage.setItem('portalLang', selected);
     setLang(selected);
-    window.location.reload();
+    window.dispatchEvent(new Event('language-changed'));
   };
 
   const handleLogout = () => {
