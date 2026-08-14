@@ -2,13 +2,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { LanguageProvider } from './context/LanguageContext';
 import { NavBar } from './components/NavBar';
+import { LandingPage } from './pages/LandingPage';
 import { JobListings } from './pages/JobListings';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { RecruiterDashboard } from './pages/RecruiterDashboard';
-import { AiChatbot } from './components/AiChatbot';
-import { GoogleLensTranslator } from './components/GoogleLensTranslator';
+import { FloatingAiAssistant } from './components/FloatingAiAssistant';
+import { AutoLogoutManager } from './components/AutoLogoutManager';
 import { Companies } from './pages/Companies';
 import { AiTools } from './pages/AiTools';
 import { Resources } from './pages/Resources';
@@ -16,6 +17,7 @@ import { Pricing } from './pages/Pricing';
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
+import { CompanyProfile } from './pages/CompanyProfile';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -43,13 +45,11 @@ function App() {
     <LanguageProvider>
       <Router>
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden' }}>
-        <div className="rgb-blob rgb-blob-1"></div>
-        <div className="rgb-blob rgb-blob-2"></div>
-        <div className="rgb-blob rgb-blob-3"></div>
         <NavBar />
         <main style={{ flex: 1, position: 'relative', zIndex: 1 }}>
           <Routes>
-            <Route path="/" element={<JobListings />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/jobs" element={<JobListings />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -71,6 +71,7 @@ function App() {
               } 
             />
             <Route path="/companies" element={<Companies />} />
+            <Route path="/company/:id" element={<CompanyProfile />} />
             <Route path="/ai-tools" element={<AiTools />} />
             <Route path="/resources" element={<Resources />} />
             <Route path="/pricing" element={<Pricing />} />
@@ -81,8 +82,8 @@ function App() {
         <footer style={styles.footer}>
           <p>© {new Date().getFullYear()} RecruitNexus - AI Recruitment Portal. All rights reserved.</p>
         </footer>
-        <AiChatbot />
-        <GoogleLensTranslator />
+        <FloatingAiAssistant />
+        <AutoLogoutManager />
       </div>
     </Router>
     </LanguageProvider>
@@ -93,7 +94,7 @@ const styles = {
   footer: {
     textAlign: 'center' as const,
     padding: '30px',
-    color: '#64748b',
+    color: '#6B7280',
     fontSize: '0.85rem',
     borderTop: '1px solid var(--glass-border)',
     marginTop: '60px',

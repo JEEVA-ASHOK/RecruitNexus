@@ -7,12 +7,29 @@ interface ChatMessage {
   text: string;
 }
 
-export const AiChatbot: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+interface AiChatbotProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  showTrigger?: boolean;
+}
+
+export const AiChatbot: React.FC<AiChatbotProps> = ({
+  isOpen: externalIsOpen,
+  onClose: externalOnClose,
+  showTrigger = true
+}) => {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleClose = () => {
+    setInternalIsOpen(false);
+    if (externalOnClose) externalOnClose();
+  };
 
   const isLoggedIn = !!localStorage.getItem('token');
   const userJson = localStorage.getItem('user');
@@ -91,18 +108,20 @@ export const AiChatbot: React.FC = () => {
   return (
     <>
       {/* Floating Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          ...styles.floatingBtn,
-          boxShadow: isOpen ? '0 0 25px rgba(0, 242, 254, 0.4)' : '0 0 20px rgba(139, 92, 246, 0.25)',
-          background: isOpen ? 'var(--accent-gradient)' : 'rgba(18, 20, 32, 0.75)',
-          borderColor: isOpen ? '#00f2fe' : 'rgba(255,255,255,0.08)',
-        }}
-        title="AI Chatbot Assistant"
-      >
-        {isOpen ? <X size={22} color="#000" /> : <Bot size={22} color="#00f2fe" style={{ filter: 'drop-shadow(0 0 4px #00f2fe)' }} />}
-      </button>
+      {showTrigger && (
+        <button
+          onClick={() => (externalIsOpen !== undefined ? handleClose() : setInternalIsOpen(!internalIsOpen))}
+          style={{
+            ...styles.floatingBtn,
+            boxShadow: isOpen ? '0 0 25px rgba(0, 242, 254, 0.4)' : '0 0 20px rgba(139, 92, 246, 0.25)',
+            background: isOpen ? 'var(--accent-gradient)' : 'rgba(18, 20, 32, 0.75)',
+            borderColor: isOpen ? '#2563EB' : 'rgba(255,255,255,0.08)',
+          }}
+          title="AI Chatbot Assistant"
+        >
+          {isOpen ? <X size={22} color="#000" /> : <Bot size={22} color="#2563EB" style={{ filter: 'drop-shadow(0 0 4px #2563EB)' }} />}
+        </button>
+      )}
 
       {/* Expanded Chat Drawer */}
       {isOpen && (
@@ -110,13 +129,13 @@ export const AiChatbot: React.FC = () => {
           {/* Header */}
           <div style={styles.header}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={18} color="#00f2fe" style={{ filter: 'drop-shadow(0 0 4px #00f2fe)' }} />
+              <Sparkles size={18} color="#2563EB" style={{ filter: 'drop-shadow(0 0 4px #2563EB)' }} />
               <div>
                 <h3 style={styles.title} className="text-gradient">NexusAI</h3>
                 <span style={styles.subtitle}>Recruit Copilot</span>
               </div>
             </div>
-            <button style={styles.closeBtn} onClick={() => setIsOpen(false)}>
+            <button style={styles.closeBtn} onClick={handleClose}>
               <X size={16} />
             </button>
           </div>
@@ -125,12 +144,12 @@ export const AiChatbot: React.FC = () => {
           <div style={styles.body}>
             {!isLoggedIn ? (
               <div style={styles.anonymousBox}>
-                <LogIn size={32} color="#64748b" style={{ marginBottom: '12px' }} />
+                <LogIn size={32} color="#6B7280" style={{ marginBottom: '12px' }} />
                 <p style={{ fontSize: '0.95rem', fontWeight: '500', color: '#fff', marginBottom: '8px' }}>Login Required</p>
-                <p style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: '1.4', marginBottom: '16px' }}>
+                <p style={{ fontSize: '0.85rem', color: '#6B7280', lineHeight: '1.4', marginBottom: '16px' }}>
                   Please sign in to your Candidate or Recruiter account to access your personalized AI assistant.
                 </p>
-                <a href="/login" className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }} onClick={() => setIsOpen(false)}>
+                <a href="/login" className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }} onClick={handleClose}>
                   Sign In
                 </a>
               </div>
@@ -147,7 +166,7 @@ export const AiChatbot: React.FC = () => {
                     >
                       {m.sender === 'ai' && (
                         <div style={styles.aiAvatar}>
-                          <Bot size={14} color="#00f2fe" />
+                          <Bot size={14} color="#2563EB" />
                         </div>
                       )}
                       <div
@@ -166,11 +185,11 @@ export const AiChatbot: React.FC = () => {
                   {loading && (
                     <div style={styles.messageBubbleContainer}>
                       <div style={styles.aiAvatar}>
-                        <Bot size={14} color="#00f2fe" />
+                        <Bot size={14} color="#2563EB" />
                       </div>
                       <div style={styles.loaderBubble}>
-                        <Loader2 className="animate-spin" size={16} color="#00f2fe" />
-                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Thinking...</span>
+                        <Loader2 className="animate-spin" size={16} color="#2563EB" />
+                        <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Thinking...</span>
                       </div>
                     </div>
                   )}
@@ -259,7 +278,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    background: 'rgba(20,24,33,0.3)',
+    background: '#FFFFFF',
   },
   title: {
     fontSize: '1.05rem',
@@ -267,7 +286,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: '0.7rem',
-    color: '#64748b',
+    color: '#6B7280',
     display: 'block',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
@@ -276,7 +295,7 @@ const styles: Record<string, React.CSSProperties> = {
   closeBtn: {
     background: 'none',
     border: 'none',
-    color: '#64748b',
+    color: '#6B7280',
     cursor: 'pointer',
     display: 'flex',
   },
@@ -354,7 +373,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.02)',
     border: '1px solid rgba(255,255,255,0.05)',
     borderRadius: '8px',
-    color: '#94a3b8',
+    color: '#6B7280',
     padding: '8px 12px',
     textAlign: 'left',
     fontSize: '0.8rem',
@@ -374,7 +393,7 @@ const styles: Record<string, React.CSSProperties> = {
     right: '26px',
     background: 'none',
     border: 'none',
-    color: '#00f2fe',
+    color: '#2563EB',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { apiRequest } from '../api';
 import { 
   Search, MapPin, DollarSign, Calendar, FileText, Send, X, AlertCircle,
@@ -23,6 +24,7 @@ interface Job {
 }
 
 export const JobListings: React.FC = () => {
+  const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [searchWhat, setSearchWhat] = useState('');
   const [searchWhere, setSearchWhere] = useState('');
@@ -30,6 +32,16 @@ export const JobListings: React.FC = () => {
   const [selectedDateLimit, setSelectedDateLimit] = useState('All');
   const [selectedSalaryLimit, setSelectedSalaryLimit] = useState('All');
   const [selectedExperience, setSelectedExperience] = useState('All');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const what = params.get('what');
+    const where = params.get('where');
+    const exp = params.get('exp');
+    if (what) setSearchWhat(what);
+    if (where) setSearchWhere(where);
+    if (exp) setSelectedExperience(exp);
+  }, [location.search]);
   
   // Accordion Sidebar filters (Multi-select arrays)
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
@@ -143,65 +155,17 @@ export const JobListings: React.FC = () => {
     return () => window.removeEventListener('theme-changed', handleThemeChange);
   }, []);
 
-  // Dynamic background image based on selected location
+  // Clean light enterprise background for Find Jobs page
   useEffect(() => {
-    const isBgsEnabled = localStorage.getItem('enableCityBgs') !== 'false';
-    const savedBgColor = localStorage.getItem('bgThemeColor') || '#0a0f1d';
-    
-    // Calculate YIQ brightness
-    const hex = savedBgColor.startsWith('#') ? savedBgColor : '#0a0f1d';
-    const r = parseInt(hex.slice(1, 3), 16) || 10;
-    const g = parseInt(hex.slice(3, 5), 16) || 15;
-    const b = parseInt(hex.slice(5, 7), 16) || 29;
-    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-    const isLight = yiq >= 128;
-
-    const gradient = isLight
-      ? `linear-gradient(rgba(241, 245, 249, 0.74), rgba(241, 245, 249, 0.82))`
-      : `linear-gradient(rgba(${r}, ${g}, ${b}, 0.70), rgba(${r}, ${g}, ${b}, 0.78))`;
-
-    if (isBgsEnabled && selectedLocations.includes('Chennai')) {
-      const centralUrl = 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?q=80&w=800&auto=format&fit=crop';
-      const wtcUrl = 'https://images.unsplash.com/photo-1554469384-e58fac16e23a?q=80&w=800&auto=format&fit=crop';
-      
-      document.body.style.backgroundImage = `${gradient}, url("${centralUrl}"), url("${wtcUrl}")`;
-      document.body.style.backgroundPosition = 'center, left center, right center';
-      document.body.style.backgroundSize = 'cover, 50% 100%, 50% 100%';
-      document.body.style.backgroundRepeat = 'no-repeat, no-repeat, no-repeat';
-      document.body.style.backgroundAttachment = 'fixed, fixed, fixed';
-    } 
-    else if (isBgsEnabled && (
-      selectedLocations.includes('Bengaluru') || 
-      selectedLocations.includes('Hyderabad') || 
-      selectedLocations.includes('Pune')
-    )) {
-      let imageUrl = '';
-      if (selectedLocations.includes('Bengaluru')) {
-        imageUrl = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=1600&auto=format&fit=crop';
-      } else if (selectedLocations.includes('Hyderabad')) {
-        imageUrl = 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1600&auto=format&fit=crop';
-      } else if (selectedLocations.includes('Pune')) {
-        imageUrl = 'https://images.unsplash.com/photo-1549692520-acc6669e2f0c?q=80&w=1600&auto=format&fit=crop';
-      }
-
-      document.body.style.backgroundImage = `${gradient}, url("${imageUrl}")`;
-      document.body.style.backgroundPosition = 'center';
-      document.body.style.backgroundSize = 'cover';
-      document.body.style.backgroundRepeat = 'no-repeat';
-      document.body.style.backgroundAttachment = 'fixed';
-    } 
-    else {
-      // Revert to default
-      document.body.style.backgroundImage = '';
-      document.body.style.backgroundColor = savedBgColor;
-    }
+    document.body.style.backgroundImage = 'none';
+    document.body.style.backgroundColor = '#F8FAFC';
 
     // Cleanup on unmount
     return () => {
       document.body.style.backgroundImage = '';
       document.body.style.backgroundColor = '';
     };
-  }, [selectedLocations, themeTick]);
+  }, []);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -537,23 +501,17 @@ export const JobListings: React.FC = () => {
   return (
     <div style={styles.container}>
       
-      {/* NAUKRI STYLE HERO BANNER */}
-      <div style={styles.naukriHero}>
-        <h1 style={styles.naukriTitle} className="text-gradient">Find your dream job now</h1>
-        <p style={styles.naukriSubtitle}>Explore 5 Lakh+ jobs from top hiring tech brands in one search</p>
-      </div>
-      
-      {/* NAUKRI DUAL SEARCH BAR SECTION */}
+      {/* ENTERPRISE SEARCH BAR SECTION */}
       <div style={styles.searchBarSection}>
-        <div style={styles.searchBarContainer} className="glass-panel">
+        <div style={styles.searchBarContainer}>
           {/* Field 1: Skills/Designation */}
           <div style={styles.searchFieldWrapper}>
-            <span style={styles.searchLabel}>Skills / Designations</span>
+            <span style={styles.searchLabel}>Job Title or Skills</span>
             <div style={styles.inputWrapper}>
-              <Search size={18} color="#64748b" />
+              <Search size={18} color="#6B7280" />
               <input
                 type="text"
-                placeholder="Enter skills, designation, companies"
+                placeholder="Title, skills, or company"
                 value={searchWhat}
                 onChange={(e) => setSearchWhat(e.target.value)}
                 style={styles.searchFieldInput}
@@ -566,10 +524,10 @@ export const JobListings: React.FC = () => {
           <div style={styles.searchFieldWrapper}>
             <span style={styles.searchLabel}>Location</span>
             <div style={styles.inputWrapper}>
-              <MapPin size={18} color="#64748b" />
+              <MapPin size={18} color="#6B7280" />
               <input
                 type="text"
-                placeholder="Enter location"
+                placeholder="City, state, or remote"
                 value={searchWhere}
                 onChange={(e) => setSearchWhere(e.target.value)}
                 style={styles.searchFieldInput}
@@ -580,15 +538,15 @@ export const JobListings: React.FC = () => {
           
           {/* Field 3: Experience Dropdown */}
           <div style={styles.searchFieldWrapper}>
-            <span style={styles.searchLabel}>Select Experience</span>
+            <span style={styles.searchLabel}>Experience Level</span>
             <div style={styles.inputWrapper}>
-              <Briefcase size={18} color="#64748b" />
+              <Briefcase size={18} color="#6B7280" />
               <select
                 value={selectedExperience}
                 onChange={(e) => setSelectedExperience(e.target.value)}
                 style={styles.searchFieldSelect}
               >
-                <option value="All">Any experience</option>
+                <option value="All">Any Experience</option>
                 <option value="0">Fresher (0 years)</option>
                 <option value="1">1 year</option>
                 <option value="2">2 years</option>
@@ -601,11 +559,11 @@ export const JobListings: React.FC = () => {
           </div>
           
           <button className="btn-primary" style={styles.findJobsBtn} onClick={handleFindJobsClick}>
-            Search
+            Search Jobs
           </button>
         </div>
 
-        {/* NAUKRI CATEGORIES QUICK BADGES */}
+        {/* QUICK CATEGORIES BADGES */}
         <div style={styles.quickBadgesRow}>
           {naukriCategories.map((cat, i) => (
             <button key={i} onClick={cat.action} style={styles.quickBadge}>
@@ -616,7 +574,7 @@ export const JobListings: React.FC = () => {
 
         {/* TOP COMPANIES HIRING NOW */}
         <div style={styles.brandsContainer}>
-          <span style={styles.brandsLabel}>Top brands hiring:</span>
+          <span style={styles.brandsLabel}>Featured hiring partners:</span>
           <div style={styles.brandsRow}>
             {featuredBrands.map((brand, i) => (
               <button 
@@ -624,7 +582,7 @@ export const JobListings: React.FC = () => {
                 onClick={() => setSearchWhat(brand.name)} 
                 style={styles.brandCard}
               >
-                <strong style={{ color: brand.logoColor, fontSize: '0.85rem' }}>{brand.name}</strong>
+                <strong style={{ color: '#111827', fontSize: '0.85rem' }}>{brand.name}</strong>
                 <span style={styles.brandRating}>★ {brand.rating}</span>
               </button>
             ))}
@@ -933,7 +891,7 @@ export const JobListings: React.FC = () => {
                     style={{
                       ...styles.ribbonCard,
                       background: selectedSalaryLimit === card.value ? 'rgba(0, 242, 254, 0.08)' : 'rgba(255,255,255,0.01)',
-                      borderColor: selectedSalaryLimit === card.value ? '#00f2fe' : 'rgba(255,255,255,0.04)',
+                      borderColor: selectedSalaryLimit === card.value ? '#2563EB' : 'rgba(255,255,255,0.04)',
                       padding: '10px 16px',
                     }}
                   >
@@ -945,7 +903,7 @@ export const JobListings: React.FC = () => {
 
             {/* Results metadata row */}
             <div style={styles.resultsHeaderRow}>
-              <span style={{ fontSize: '1.05rem', fontWeight: 'bold', color: '#cbd5e1' }}>
+              <span style={{ fontSize: '1.05rem', fontWeight: 'bold', color: '#6B7280' }}>
                 {searchWhat 
                   ? `${searchWhat} Opportunities`
                   : 'Recommended Opportunities'
@@ -956,16 +914,16 @@ export const JobListings: React.FC = () => {
             {/* Middle Pane Listings Loop */}
             {filteredJobs.length === 0 ? (
               <div style={styles.noResultsBox}>
-                <AlertCircle size={36} color="#64748b" style={{ marginBottom: '12px' }} />
+                <AlertCircle size={36} color="#6B7280" style={{ marginBottom: '12px' }} />
                 <h3>No jobs match your search criteria.</h3>
-                <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Try adjusting your filters or expanding your region.</p>
+                <p style={{ fontSize: '0.85rem', color: '#6B7280' }}>Try adjusting your filters or expanding your region.</p>
               </div>
             ) : (
               filteredJobs.map((job, idx) => {
                 const rating = getIndeedRating(job.recruiterName, job.id);
                 const isActive = selectedJob?.id === job.id;
                 const firstChar = job.recruiterName ? job.recruiterName.charAt(0).toUpperCase() : 'J';
-                const colors = ['#00f2fe', '#8b5cf6', '#34d399', '#f43f5e', '#fbbf24'];
+                const colors = ['#2563EB', '#8b5cf6', '#34d399', '#f43f5e', '#fbbf24'];
                 const logoColor = colors[job.id % colors.length];
 
                 return (
@@ -1007,13 +965,13 @@ export const JobListings: React.FC = () => {
                           <h3 style={styles.cardTitle}>{job.title}</h3>
                           <div style={styles.cardCompanyRow}>
                             <span 
-                              style={{ ...styles.cardCompanyName, cursor: job.companyId ? 'pointer' : 'default', textDecoration: job.companyId ? 'underline' : 'none', color: job.companyId ? '#00f2fe' : 'inherit' }}
+                              style={{ ...styles.cardCompanyName, cursor: job.companyId ? 'pointer' : 'default', textDecoration: job.companyId ? 'underline' : 'none', color: job.companyId ? '#2563EB' : 'inherit' }}
                               onClick={(e) => { e.stopPropagation(); if (job.companyId) handleViewCompany(job.companyId); }}
                             >
                               {job.recruiterName}
                             </span>
                             <span style={styles.cardRating}>
-                              ★ {rating.score} | <span style={{ color: '#64748b', fontSize: '0.72rem' }}>{rating.count}</span>
+                              ★ {rating.score} | <span style={{ color: '#6B7280', fontSize: '0.72rem' }}>{rating.count}</span>
                             </span>
                           </div>
                         </div>
@@ -1026,7 +984,7 @@ export const JobListings: React.FC = () => {
                       </div>
 
                       <div style={styles.cardExcerptRow}>
-                        <FileText size={13} style={{ flexShrink: 0, marginTop: '2px', color: '#64748b' }} />
+                        <FileText size={13} style={{ flexShrink: 0, marginTop: '2px', color: '#6B7280' }} />
                         <span style={styles.excerptText}>
                           {job.description.length > 130 ? `${job.description.slice(0, 130)}...` : job.description}
                         </span>
@@ -1078,7 +1036,7 @@ export const JobListings: React.FC = () => {
                   <h2 style={styles.detailsTitle}>{selectedJob.title}</h2>
                   <div style={styles.detailsCompanyLine}>
                     <span 
-                      style={{ ...styles.detailsCompanyName, cursor: selectedJob.companyId ? 'pointer' : 'default', textDecoration: selectedJob.companyId ? 'underline' : 'none', color: selectedJob.companyId ? '#00f2fe' : 'inherit' }}
+                      style={{ ...styles.detailsCompanyName, cursor: selectedJob.companyId ? 'pointer' : 'default', textDecoration: selectedJob.companyId ? 'underline' : 'none', color: selectedJob.companyId ? '#2563EB' : 'inherit' }}
                       onClick={() => { if (selectedJob.companyId) handleViewCompany(selectedJob.companyId); }}
                     >
                       {selectedJob.recruiterName}
@@ -1090,7 +1048,7 @@ export const JobListings: React.FC = () => {
                   <div style={styles.detailsLocationLine}>{selectedJob.location}</div>
                   
                   <div style={styles.detailsSalaryBlock}>
-                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Salary / Compensation:</span>
+                    <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Salary / Compensation:</span>
                     <strong style={{ fontSize: '1.2rem', color: '#22c55e', display: 'block', marginTop: '4px' }}>
                       {selectedJob.salaryRange || 'Undisclosed'}
                     </strong>
@@ -1098,7 +1056,7 @@ export const JobListings: React.FC = () => {
 
                   {selectedJob.applicationDeadline && (
                     <div style={{ ...styles.detailsSalaryBlock, marginTop: '12px' }}>
-                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Application Deadline:</span>
+                      <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Application Deadline:</span>
                       <strong style={{ fontSize: '0.95rem', color: new Date(selectedJob.applicationDeadline) < new Date() ? '#f87171' : '#fbbf24', display: 'block', marginTop: '4px' }}>
                         {new Date(selectedJob.applicationDeadline).toLocaleDateString()} {new Date(selectedJob.applicationDeadline) < new Date() ? '(Expired / Closed)' : ''}
                       </strong>
@@ -1153,7 +1111,7 @@ export const JobListings: React.FC = () => {
                         <Bot size={18} color="#c084fc" />
                         <strong style={{ fontSize: '0.9rem', color: '#c084fc' }}>Gemini AI Candidate Fit Report</strong>
                       </div>
-                      <p style={{ fontSize: '0.8rem', color: '#cbd5e1', lineHeight: '1.4' }}>
+                      <p style={{ fontSize: '0.8rem', color: '#6B7280', lineHeight: '1.4' }}>
                         Your resume matches the core competencies required for this role. Submit your application to trigger the full compatibility report.
                       </p>
                     </div>
@@ -1184,9 +1142,9 @@ export const JobListings: React.FC = () => {
               </div>
             ) : (
               <div style={styles.emptyDetailsPanel}>
-                <Briefcase size={48} color="#64748b" style={{ marginBottom: '16px' }} />
+                <Briefcase size={48} color="#6B7280" style={{ marginBottom: '16px' }} />
                 <h3>Select a job to view details</h3>
-                <p style={{ fontSize: '0.9rem', color: '#64748b', maxWidth: '360px', marginTop: '8px', lineHeight: '1.4' }}>
+                <p style={{ fontSize: '0.9rem', color: '#6B7280', maxWidth: '360px', marginTop: '8px', lineHeight: '1.4' }}>
                   Click on any job card in the left list to see the full description, qualifications, and direct apply triggers.
                 </p>
               </div>
@@ -1271,17 +1229,17 @@ export const JobListings: React.FC = () => {
                 )}
                 <div style={{ textAlign: 'left' }}>
                   <h3 style={{ ...styles.modalTitle, margin: 0 }} className="text-gradient">{viewingCompany.name}</h3>
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>🏢 {viewingCompany.industry || 'Tech Industry'}</span>
+                  <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>🏢 {viewingCompany.industry || 'Tech Industry'}</span>
                 </div>
               </div>
               <button style={styles.closeBtn} onClick={() => setViewingCompany(null)}><X size={18} /></button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', color: '#cbd5e1', fontSize: '0.9rem', textAlign: 'left' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', color: '#6B7280', fontSize: '0.9rem', textAlign: 'left' }}>
               {viewingCompany.website && (
                 <div>
                   <strong>Website:</strong>{' '}
-                  <a href={viewingCompany.website.startsWith('http') ? viewingCompany.website : `https://${viewingCompany.website}`} target="_blank" rel="noreferrer" style={{ color: '#00f2fe', textDecoration: 'underline' }}>
+                  <a href={viewingCompany.website.startsWith('http') ? viewingCompany.website : `https://${viewingCompany.website}`} target="_blank" rel="noreferrer" style={{ color: '#2563EB', textDecoration: 'underline' }}>
                     {viewingCompany.website}
                   </a>
                 </div>
@@ -1294,14 +1252,14 @@ export const JobListings: React.FC = () => {
               {viewingCompany.about && (
                 <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', marginTop: '4px' }}>
                   <strong>About the Company:</strong>
-                  <p style={{ margin: '6px 0 0 0', lineHeight: 1.5, fontSize: '0.85rem', color: '#94a3b8' }}>{viewingCompany.about}</p>
+                  <p style={{ margin: '6px 0 0 0', lineHeight: 1.5, fontSize: '0.85rem', color: '#6B7280' }}>{viewingCompany.about}</p>
                 </div>
               )}
 
               <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.06)', margin: '8px 0' }} />
 
               <div>
-                <strong style={{ display: 'block', marginBottom: '8px', color: '#fff' }}>💼 Open Positions ({viewingCompany.openJobs?.length || 0})</strong>
+                <strong style={{ display: 'block', marginBottom: '8px', color: '#111827' }}>💼 Open Positions ({viewingCompany.openJobs?.length || 0})</strong>
                 {viewingCompany.openJobs && viewingCompany.openJobs.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
                     {viewingCompany.openJobs.map((j: any) => (
@@ -1310,8 +1268,8 @@ export const JobListings: React.FC = () => {
                         style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '6px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                       >
                         <div>
-                          <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#fff' }}>{j.title}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>📍 {j.location} | 💰 {j.salaryRange || 'Undisclosed'}</div>
+                          <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#111827' }}>{j.title}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>📍 {j.location} | 💰 {j.salaryRange || 'Undisclosed'}</div>
                         </div>
                         <button 
                           onClick={() => { setSelectedJob(j); setViewingCompany(null); }}
@@ -1324,7 +1282,7 @@ export const JobListings: React.FC = () => {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ color: '#64748b', fontSize: '0.8rem' }}>No open job listings at this time.</div>
+                  <div style={{ color: '#6B7280', fontSize: '0.8rem' }}>No open job listings at this time.</div>
                 )}
               </div>
             </div>
@@ -1361,7 +1319,7 @@ export const JobListings: React.FC = () => {
             {/* Modal Search box if Department or Company Type is selected */}
             {(activeModal === 'department' || activeModal === 'companyType') && (
               <div style={{ marginBottom: '16px', position: 'relative' }}>
-                <Search size={16} color="#64748b" style={{ position: 'absolute', left: '12px', top: '12px' }} />
+                <Search size={16} color="#6B7280" style={{ position: 'absolute', left: '12px', top: '12px' }} />
                 <input
                   type="text"
                   placeholder={activeModal === 'department' ? 'Search Department' : 'Search Company type'}
@@ -1548,24 +1506,56 @@ const styles: Record<string, React.CSSProperties> = {
   },
   naukriHero: {
     textAlign: 'center',
-    marginBottom: '28px',
-    marginTop: '16px',
+    marginBottom: '36px',
+    marginTop: '20px',
   },
   naukriTitle: {
-    fontSize: '2.4rem',
+    fontSize: '2.75rem',
     fontWeight: '800',
-    marginBottom: '8px',
-    letterSpacing: '-0.5px',
-    filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.7))',
+    marginBottom: '12px',
+    letterSpacing: '-1px',
+    color: '#111827',
+    lineHeight: '1.2',
   },
   naukriSubtitle: {
-    fontSize: '1.05rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    fontSize: '1.1rem',
+    color: '#4B5563',
+    maxWidth: '750px',
+    margin: '0 auto 28px auto',
+    lineHeight: '1.5',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '16px',
+    maxWidth: '960px',
+    margin: '0 auto',
+  },
+  statCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    padding: '16px',
+    textAlign: 'center',
+    boxShadow: 'var(--shadow-card)',
+  },
+  statNumber: {
+    display: 'block',
+    fontSize: '1.75rem',
+    fontWeight: '800',
+    color: '#2563EB',
+    letterSpacing: '-0.5px',
+  },
+  statLabel: {
+    fontSize: '0.8rem',
+    fontWeight: '600',
+    color: '#6B7280',
+    textTransform: 'uppercase',
   },
   searchFieldSelect: {
     background: 'none',
     border: 'none',
-    color: '#94a3b8',
+    color: '#111827',
     outline: 'none',
     width: '100%',
     fontSize: '0.95rem',
@@ -1575,35 +1565,37 @@ const styles: Record<string, React.CSSProperties> = {
   quickBadgesRow: {
     display: 'flex',
     gap: '8px',
-    marginTop: '12px',
+    marginTop: '16px',
     flexWrap: 'wrap',
     justifyContent: 'center',
   },
   quickBadge: {
-    background: 'rgba(255, 255, 255, 0.02)',
-    border: '1px solid var(--glass-border)',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
     borderRadius: '20px',
-    color: 'var(--text-secondary, #94a3b8)',
-    padding: '6px 12px',
-    fontSize: '0.78rem',
+    color: '#4B5563',
+    padding: '6px 14px',
+    fontSize: '0.8rem',
+    fontWeight: '500',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
   brandsContainer: {
     marginTop: '20px',
-    padding: '12px 18px',
-    borderRadius: '16px',
+    padding: '12px 20px',
+    borderRadius: '12px',
     display: 'flex',
     alignItems: 'center',
     gap: '16px',
     flexWrap: 'wrap',
-    border: '1px solid var(--glass-border)',
-    background: 'var(--glass-bg-override, rgba(18, 20, 32, 0.3))',
+    border: '1px solid #E5E7EB',
+    background: '#FFFFFF',
+    boxShadow: 'var(--shadow-card)',
   },
   brandsLabel: {
-    fontSize: '0.8rem',
-    fontWeight: '600',
-    color: 'var(--text-muted, #64748b)',
+    fontSize: '0.78rem',
+    fontWeight: '700',
+    color: '#6B7280',
     textTransform: 'uppercase',
   },
   brandsRow: {
@@ -1612,9 +1604,9 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
   },
   brandCard: {
-    background: 'var(--glass-bg-override, rgba(255, 255, 255, 0.01))',
-    border: '1px solid var(--glass-border)',
-    borderRadius: '10px',
+    background: '#F8FAFC',
+    border: '1px solid #E5E7EB',
+    borderRadius: '8px',
     padding: '6px 12px',
     display: 'flex',
     alignItems: 'center',
@@ -1624,21 +1616,22 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
   },
   brandRating: {
-    fontSize: '0.75rem',
-    color: '#fbbf24',
+    fontSize: '0.78rem',
+    color: '#D97706',
     fontWeight: 'bold',
   },
   searchBarSection: {
-    marginBottom: '32px',
+    marginBottom: '36px',
   },
   searchBarContainer: {
     display: 'flex',
     alignItems: 'center',
-    padding: '8px 16px',
-    borderRadius: '16px',
-    gap: '8px',
-    border: '1px solid var(--glass-border)',
-    background: 'var(--glass-bg)',
+    padding: '10px 20px',
+    borderRadius: '12px',
+    gap: '12px',
+    border: '1px solid #6B7280',
+    background: '#FFFFFF',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
     flexWrap: 'wrap',
   },
   searchFieldWrapper: {
@@ -1646,13 +1639,13 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minWidth: '220px',
-    padding: '6px 12px',
+    padding: '4px 8px',
     textAlign: 'left',
   },
   searchLabel: {
     fontSize: '0.75rem',
-    fontWeight: '800',
-    color: 'var(--accent-cyan)',
+    fontWeight: '700',
+    color: '#2563EB',
     textTransform: 'uppercase',
     marginBottom: '4px',
     letterSpacing: '0.5px',
@@ -1665,7 +1658,7 @@ const styles: Record<string, React.CSSProperties> = {
   searchFieldInput: {
     background: 'none',
     border: 'none',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
     outline: 'none',
     width: '100%',
     fontSize: '0.95rem',
@@ -1674,18 +1667,19 @@ const styles: Record<string, React.CSSProperties> = {
   searchFieldDivider: {
     width: '1px',
     height: '40px',
-    background: 'var(--glass-border)',
+    background: '#E5E7EB',
     alignSelf: 'center',
   },
   findJobsBtn: {
     padding: '12px 32px',
-    borderRadius: '12px',
+    borderRadius: '8px',
     fontSize: '0.95rem',
     cursor: 'pointer',
     flexShrink: 0,
-    background: 'linear-gradient(135deg, #2557a7 0%, #00f2fe 100%)',
-    color: '#fff',
+    background: '#2563EB',
+    color: '#111827',
     fontWeight: 'bold',
+    border: 'none',
   },
   filterOptionsRow: {
     display: 'flex',
@@ -1694,11 +1688,11 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
   },
   filterDropdown: {
-    background: 'var(--glass-bg)',
-    border: '1px solid var(--glass-border)',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
     borderRadius: '8px',
     padding: '8px 14px',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#374151',
     outline: 'none',
     cursor: 'pointer',
     fontSize: '0.8rem',
@@ -1712,31 +1706,32 @@ const styles: Record<string, React.CSSProperties> = {
   filterSidebar: {
     width: '260px',
     flexShrink: 0,
-    background: 'var(--glass-bg)',
-    border: '1px solid var(--glass-border)',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
     borderRadius: '16px',
     padding: '20px',
     maxHeight: 'calc(100vh - 200px)',
     overflowY: 'auto',
     textAlign: 'left',
+    boxShadow: 'var(--shadow-card)',
   },
   sidebarHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '20px',
-    borderBottom: '1px solid var(--glass-border)',
+    borderBottom: '1px solid #E5E7EB',
     paddingBottom: '10px',
   },
   sidebarTitle: {
     fontSize: '1rem',
     fontWeight: '800',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
   },
   clearBtn: {
     background: 'none',
     border: 'none',
-    color: '#00f2fe',
+    color: '#2563EB',
     fontSize: '0.78rem',
     cursor: 'pointer',
     fontWeight: 'bold',
@@ -1748,7 +1743,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     fontSize: '0.82rem',
     fontWeight: '800',
-    color: 'var(--text-primary, #cbd5e1)',
+    color: 'var(--text-primary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
     marginBottom: '10px',
@@ -1763,7 +1758,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '8px',
     fontSize: '0.8rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: 'var(--text-secondary, #6B7280)',
     cursor: 'pointer',
   },
   checkboxElement: {
@@ -1777,7 +1772,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: '0.72rem',
-    color: '#64748b',
+    color: '#6B7280',
     marginTop: '4px',
   },
   middlePane: {
@@ -1791,16 +1786,17 @@ const styles: Record<string, React.CSSProperties> = {
     paddingRight: '6px',
   },
   salaryRibbon: {
-    background: 'var(--glass-bg)',
-    border: '1px solid var(--glass-border)',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
     borderRadius: '16px',
     padding: '16px',
     textAlign: 'left',
+    boxShadow: 'var(--shadow-card)',
   },
   ribbonTitle: {
     fontSize: '0.85rem',
     fontWeight: '700',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#4B5563',
     display: 'block',
     marginBottom: '10px',
   },
@@ -1810,7 +1806,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '10px',
   },
   ribbonCard: {
-    border: '1px solid',
+    border: '1px solid #E5E7EB',
     borderRadius: '10px',
     padding: '10px',
     cursor: 'pointer',
@@ -1819,20 +1815,21 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
+    background: '#FFFFFF',
   },
   ribbonCardLabel: {
     fontSize: '0.82rem',
     fontWeight: '800',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
   },
   ribbonCardCount: {
     fontSize: '0.72rem',
-    color: '#64748b',
+    color: '#6B7280',
     marginTop: '2px',
   },
   resultsHeaderRow: {
     fontSize: '0.8rem',
-    color: 'var(--text-secondary, #64748b)',
+    color: '#4B5563',
     fontWeight: 'bold',
     textAlign: 'left',
     paddingBottom: '2px',
@@ -1850,8 +1847,9 @@ const styles: Record<string, React.CSSProperties> = {
     width: '40px',
     height: '40px',
     borderRadius: '50%',
-    background: 'rgba(255,255,255,0.02)',
-    border: '2px solid',
+    background: '#F8FAFC',
+    border: '2px solid #2563EB',
+    color: '#2563EB',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1862,8 +1860,8 @@ const styles: Record<string, React.CSSProperties> = {
   cardMetaRow: {
     display: 'flex',
     gap: '14px',
-    color: 'var(--text-secondary, #94a3b8)',
-    fontSize: '0.8rem',
+    color: '#4B5563',
+    fontSize: '0.82rem',
     margin: '10px 0',
     flexWrap: 'wrap',
   },
@@ -1876,14 +1874,15 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: '8px',
     alignItems: 'flex-start',
-    background: 'var(--glass-bg-override, rgba(255,255,255,0.01))',
+    background: '#F8FAFC',
+    border: '1px solid #E5E7EB',
     borderRadius: '8px',
     padding: '8px 12px',
     margin: '8px 0',
   },
   excerptText: {
-    fontSize: '0.78rem',
-    color: 'var(--text-secondary, #cbd5e1)',
+    fontSize: '0.8rem',
+    color: '#374151',
     lineHeight: '1.4',
   },
   cardSkillsRow: {
@@ -1893,25 +1892,26 @@ const styles: Record<string, React.CSSProperties> = {
     margin: '10px 0',
   },
   skillTag: {
-    background: 'var(--glass-bg-override, rgba(255,255,255,0.03))',
-    border: '1px solid var(--glass-border)',
+    background: '#F1F5F9',
+    border: '1px solid #6B7280',
     borderRadius: '6px',
     padding: '4px 8px',
-    fontSize: '0.72rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    fontSize: '0.75rem',
+    color: '#374151',
+    fontWeight: '500',
   },
   saveBtn: {
     background: 'none',
     border: 'none',
-    color: 'var(--text-muted, #64748b)',
+    color: '#4B5563',
     cursor: 'pointer',
     fontSize: '0.8rem',
     fontWeight: 'bold',
     outline: 'none',
   },
   registerCtaBanner: {
-    background: 'linear-gradient(135deg, rgba(37, 87, 167, 0.15) 0%, rgba(0, 242, 254, 0.05) 100%)',
-    border: '1px solid rgba(0, 242, 254, 0.1)',
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
     borderRadius: '16px',
     padding: '20px',
     textAlign: 'left',
@@ -1919,12 +1919,12 @@ const styles: Record<string, React.CSSProperties> = {
   ctaDetails: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
+    gap: '8px',
   },
   ctaTitle: {
     fontSize: '0.92rem',
     fontWeight: '800',
-    color: '#fff',
+    color: '#111827',
     lineHeight: '1.3',
   },
   ctaChecklist: {
@@ -1943,25 +1943,28 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '6px',
     textAlign: 'center',
     textDecoration: 'none',
+    background: '#2563EB',
+    color: '#111827',
   },
   noResultsBox: {
     padding: '40px 20px',
     textAlign: 'center',
-    color: '#64748b',
+    color: '#6B7280',
   },
   jobCard: {
     padding: '24px',
-    borderRadius: '16px',
+    borderRadius: '12px',
     textAlign: 'left',
     cursor: 'pointer',
-    transition: 'all 0.25s ease',
-    background: 'var(--glass-bg)',
-    border: '1px solid var(--glass-border)',
+    transition: 'all 0.2s ease',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    boxShadow: 'var(--shadow-card)',
   },
   cardTitle: {
     fontSize: '1.25rem',
     fontWeight: '800',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
     lineHeight: '1.3',
     marginBottom: '6px',
   },
@@ -1973,24 +1976,25 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
   },
   cardCompanyName: {
-    fontSize: '0.9rem',
-    fontWeight: '600',
-    color: 'var(--text-secondary, #cbd5e1)',
+    fontSize: '0.92rem',
+    fontWeight: '700',
+    color: '#1E293B',
   },
   cardRating: {
     fontSize: '0.8rem',
-    color: '#fbbf24',
+    color: '#D97706',
     fontWeight: 'bold',
   },
   cardLocation: {
     fontSize: '0.85rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#4B5563',
     marginBottom: '10px',
   },
   cardSalaryBadge: {
     display: 'inline-block',
-    background: 'rgba(34,197,94,0.08)',
-    color: '#34d399',
+    background: '#DCFCE7',
+    color: '#15803D',
+    border: '1px solid #BBF7D0',
     padding: '4px 10px',
     borderRadius: '6px',
     fontSize: '0.8rem',
@@ -2007,18 +2011,18 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    background: 'var(--glass-bg-override, rgba(255,255,255,0.03))',
-    border: '1px solid var(--glass-border)',
+    background: '#F1F5F9',
+    border: '1px solid #E5E7EB',
     padding: '4px 8px',
     borderRadius: '6px',
     fontSize: '0.75rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#4B5563',
   },
   cardDescriptionSnippet: {
     paddingLeft: '18px',
     margin: '0 0 16px 0',
-    fontSize: '0.8rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    fontSize: '0.82rem',
+    color: '#374151',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
@@ -2030,16 +2034,16 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTop: '1px solid rgba(255,255,255,0.04)',
+    borderTop: '1px solid #F1F5F9',
     paddingTop: '12px',
-    fontSize: '0.75rem',
-    color: '#64748b',
+    fontSize: '0.78rem',
+    color: '#6B7280',
   },
   postedTime: {
-    color: '#64748b',
+    color: '#6B7280',
   },
   matchBadge: {
-    color: '#00f2fe',
+    color: '#2563EB',
     fontWeight: 'bold',
   },
   rightPane: {
@@ -2050,17 +2054,18 @@ const styles: Record<string, React.CSSProperties> = {
   },
   detailsStickyPanel: {
     padding: '32px',
-    borderRadius: '20px',
+    borderRadius: '12px',
     textAlign: 'left',
     height: 'calc(100vh - 220px)',
     overflowY: 'auto',
-    border: '1px solid var(--glass-border)',
-    background: 'var(--glass-bg)',
+    border: '1px solid #E5E7EB',
+    background: '#FFFFFF',
+    boxShadow: 'var(--shadow-card)',
   },
   detailsTitle: {
     fontSize: '1.8rem',
     fontWeight: '800',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
     lineHeight: '1.25',
     marginBottom: '8px',
   },
@@ -2069,21 +2074,22 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '12px',
     fontSize: '1.05rem',
-    color: '#fbbf24',
+    color: '#D97706',
     fontWeight: 'bold',
     marginBottom: '6px',
   },
   detailsCompanyName: {
-    color: 'var(--text-primary, #e2e8f0)',
+    color: '#1E293B',
+    fontWeight: '700',
   },
   detailsLocationLine: {
     fontSize: '0.9rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#4B5563',
     marginBottom: '20px',
   },
   detailsSalaryBlock: {
-    background: 'var(--glass-bg-override, rgba(255,255,255,0.02))',
-    border: '1px solid var(--glass-border)',
+    background: '#F8FAFC',
+    border: '1px solid #E5E7EB',
     padding: '16px',
     borderRadius: '12px',
     marginBottom: '24px',
@@ -2093,18 +2099,18 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '16px',
     marginBottom: '28px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid #F1F5F9',
     paddingBottom: '24px',
     flexWrap: 'wrap',
   },
   applyBtn: {
     padding: '12px 36px',
-    borderRadius: '10px',
+    borderRadius: '8px',
     fontSize: '0.95rem',
     fontWeight: 'bold',
     cursor: 'pointer',
-    background: '#2557a7',
-    color: '#fff',
+    background: '#2563EB',
+    color: '#111827',
     border: 'none',
   },
   translateWrapper: {
@@ -2112,7 +2118,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   recruiterBadge: {
     fontSize: '0.85rem',
-    color: '#8b5cf6',
+    color: '#7C3AED',
     fontWeight: 'bold',
   },
   detailsBody: {
@@ -2124,6 +2130,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     borderRadius: '12px',
     textAlign: 'left',
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
   },
   detailSection: {
     textAlign: 'left',
@@ -2131,26 +2139,26 @@ const styles: Record<string, React.CSSProperties> = {
   sectionHeader: {
     fontSize: '1rem',
     fontWeight: '800',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
     marginBottom: '12px',
-    borderLeft: '3px solid var(--accent-cyan)',
+    borderLeft: '3px solid #2563EB',
     paddingLeft: '10px',
   },
   jobInfoItem: {
     display: 'flex',
     gap: '8px',
     fontSize: '0.9rem',
-    color: 'var(--text-primary, #cbd5e1)',
+    color: '#374151',
   },
   detailDescriptionText: {
     fontSize: '0.9rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#374151',
     lineHeight: '1.6',
     whiteSpace: 'pre-line',
   },
   detailRequirementsText: {
     fontSize: '0.9rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#374151',
     lineHeight: '1.6',
     whiteSpace: 'pre-line',
   },
@@ -2160,16 +2168,16 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '60px 40px',
-    color: 'var(--text-secondary, #64748b)',
+    color: '#6B7280',
     height: 'calc(100vh - 220px)',
-    borderRadius: '20px',
-    border: '1px solid var(--glass-border)',
-    background: 'var(--glass-bg)',
+    borderRadius: '12px',
+    border: '1px solid #E5E7EB',
+    background: '#FFFFFF',
   },
   center: {
     textAlign: 'center',
     padding: '60px 0',
-    color: '#64748b',
+    color: '#6B7280',
   },
   modalOverlay: {
     position: 'fixed',
@@ -2177,7 +2185,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0,0,0,0.7)',
+    background: 'rgba(15, 23, 42, 0.6)',
     backdropFilter: 'blur(4px)',
     display: 'flex',
     alignItems: 'center',
@@ -2187,11 +2195,13 @@ const styles: Record<string, React.CSSProperties> = {
   modalContent: {
     width: '100%',
     maxWidth: '520px',
-    borderRadius: '20px',
+    borderRadius: '12px',
     padding: '32px',
     maxHeight: '90vh',
     overflowY: 'auto',
     textAlign: 'left',
+    background: '#FFFFFF',
+    color: '#111827',
   },
   modalHeader: {
     display: 'flex',
@@ -2201,18 +2211,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modalLabel: {
     fontSize: '0.75rem',
-    color: '#64748b',
+    color: '#6B7280',
     textTransform: 'uppercase',
   },
   modalTitle: {
     fontSize: '1.5rem',
     fontWeight: '800',
     lineHeight: '1.2',
+    color: '#111827',
   },
   closeBtn: {
     background: 'none',
     border: 'none',
-    color: '#64748b',
+    color: '#6B7280',
     cursor: 'pointer',
     fontSize: '1.5rem',
   },
@@ -2229,7 +2240,7 @@ const styles: Record<string, React.CSSProperties> = {
   modalFormLabel: {
     fontSize: '0.85rem',
     fontWeight: '600',
-    color: '#cbd5e1',
+    color: '#374151',
   },
   modalActions: {
     display: 'flex',
@@ -2256,15 +2267,15 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    fontSize: '0.82rem',
-    color: '#cbd5e1',
+    fontSize: '0.85rem',
+    color: '#374151',
     cursor: 'pointer',
   },
   viewMoreBtn: {
     background: 'none',
     border: 'none',
-    color: '#00f2fe',
-    fontSize: '0.78rem',
+    color: '#2563EB',
+    fontSize: '0.8rem',
     cursor: 'pointer',
     fontWeight: 'bold',
     textAlign: 'left',
@@ -2279,6 +2290,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     borderRadius: '12px',
     fontSize: '0.85rem',
+    background: '#FEF3C7',
+    border: '1px solid #FDE68A',
+    color: '#92400E',
   },
 };
-

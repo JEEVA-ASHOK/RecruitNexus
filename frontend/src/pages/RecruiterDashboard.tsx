@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../api';
 import { Plus, Briefcase, FileText, Calendar, Send, ShieldAlert, CheckCircle2, User, Award, Clock, X, Eye, BarChart3, Users, TrendingUp } from 'lucide-react';
@@ -75,8 +75,23 @@ export const RecruiterDashboard: React.FC = () => {
   const user = userJson ? JSON.parse(userJson) : null;
   const isAdmin = user?.role === 'Admin';
 
-  const [activeTab, setActiveTab] = useState<'jobs' | 'applications' | 'interviews' | 'admin' | 'calendar' | 'company' | 'analytics'>('jobs');
-  
+  const [activeTab, setActiveTab] = useState<'analytics' | 'jobs' | 'applications' | 'interviews' | 'admin' | 'calendar' | 'company'>('analytics');
+  const [analyticsData, setAnalyticsData] = useState<any | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  const fetchRecruiterAnalytics = useCallback(async () => {
+    setLoadingAnalytics(true);
+    const { data, error } = await apiRequest<any>('/analytics/recruiter-dashboard');
+    setLoadingAnalytics(false);
+    if (!error && data) {
+      setAnalyticsData(data);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecruiterAnalytics();
+  }, [fetchRecruiterAnalytics]);
+
   // Pagination State
   const [jobsPage, setJobsPage] = useState(1);
   const [appsPage, setAppsPage] = useState(1);
@@ -96,6 +111,14 @@ export const RecruiterDashboard: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [viewingCalendarInt, setViewingCalendarInt] = useState<Interview | null>(null);
+  
+  // Smart Interview Calendar Filter & View State
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('month');
+  const [calStatusFilter, setCalStatusFilter] = useState('All');
+  const [calTypeFilter, setCalTypeFilter] = useState('All');
+  const [calModeFilter, setCalModeFilter] = useState('All');
+  const [calSearchQuery, setCalSearchQuery] = useState('');
+  const [selectedCalDate, setSelectedCalDate] = useState<Date>(new Date());
   
   // Interview Schedule Form Modal
   const [schedulingApp, setSchedulingApp] = useState<Application | null>(null);
@@ -146,6 +169,23 @@ export const RecruiterDashboard: React.FC = () => {
   const [aiHiringDecisionResult, setAiHiringDecisionResult] = useState<any | null>(null);
   const [loadingAiHiringDecision, setLoadingAiHiringDecision] = useState(false);
   const [savingDecisionNotice, setSavingDecisionNotice] = useState(false);
+
+  // ATS Analysis Modal state
+  const [atsModalApp, setAtsModalApp] = useState<Application | null>(null);
+  const [atsAnalysisData, setAtsAnalysisData] = useState<any | null>(null);
+  const [loadingAtsModal, setLoadingAtsModal] = useState(false);
+
+  const handleViewAtsAnalysis = async (app: Application) => {
+    setAtsModalApp(app);
+    setAtsAnalysisData(null);
+    setLoadingAtsModal(true);
+
+    const { data, error } = await apiRequest<any>(`/applications/${app.id}/ats-analysis`, 'POST');
+    setLoadingAtsModal(false);
+    if (!error && data) {
+      setAtsAnalysisData(data);
+    }
+  };
 
   const handleGenerateHiringDecision = async (app: Application) => {
     setAiHiringDecisionModalApp(app);
@@ -226,11 +266,38 @@ export const RecruiterDashboard: React.FC = () => {
     }
   };
 
+  const [loadingAiOffer, setLoadingAiOffer] = useState(false);
+  const [offerMode, setOfferMode] = useState<'edit' | 'preview'>('edit');
+  const [approvalState, setApprovalState] = useState<string>('Draft');
+
   const handleOpenOfferGenerator = (app: any) => {
     setGeneratingOfferApp(app);
+    setOfferMode('edit');
+    setApprovalState(app.offerStatus === 'Pending' ? 'Sent' : 'Draft');
     const today = new Date().toLocaleDateString();
     const defaultTemplate = `Date: ${today}\nTo: ${app.candidateName}\n\nDear ${app.candidateName},\n\nWe are pleased to offer you the position of "${app.jobTitle}" at our organization.\n\nKey terms:\n- Compensation: Competitive Salary\n- Location: Remote / Office\n- Start Date: Standard 2-week notice period\n\nPlease review the terms and respond (Accept/Reject) directly via your dashboard portal.\n\nSincerely,\nHiring Team`;
     setOfferContent(app.offerLetterContent || defaultTemplate);
+  };
+
+  const handleGenerateAiOffer = async (forceOverwrite = false) => {
+    if (!generatingOfferApp) return;
+
+    if (offerContent && offerContent.trim().length > 30 && !forceOverwrite) {
+      if (!window.confirm("An offer letter draft already exists. Do you want to generate a new AI version?")) {
+        return;
+      }
+    }
+
+    setLoadingAiOffer(true);
+    const { data, error } = await apiRequest<any>('/ai/generate-offer-letter', 'POST', {
+      applicationId: generatingOfferApp.id
+    });
+    setLoadingAiOffer(false);
+
+    if (!error && data?.offerLetterContent) {
+      setOfferContent(data.offerLetterContent);
+      setApprovalState('Draft');
+    }
   };
 
   const handleSaveOfferLetter = async (e: React.FormEvent) => {
@@ -242,11 +309,60 @@ export const RecruiterDashboard: React.FC = () => {
     });
     
     if (!error) {
-      alert("Offer letter generated successfully!");
+      alert("Offer letter sent to candidate successfully!");
       setGeneratingOfferApp(null);
       loadData();
     } else {
       alert(error);
+    }
+  };
+
+  const handleDownloadOfferPdf = () => {
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      alert("Please allow popups to print/download offer letter.");
+      return;
+    }
+    printWin.document.write(`
+      <html>
+        <head>
+          <title>Job Offer Letter - ${generatingOfferApp?.candidateName}</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 40px; color: #1e293b; line-height: 1.6; }
+            pre { font-family: inherit; white-space: pre-wrap; font-size: 14px; background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+            .header { border-bottom: 2px solid #2563eb; padding-bottom: 15px; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>RECRUITNEXUS OFFICIAL JOB OFFER LETTER</h2>
+          </div>
+          <pre>${offerContent}</pre>
+          <script>window.print();</script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
+  // Onboarding State
+  const [onboardingModalApp, setOnboardingModalApp] = useState<any>(null);
+  const [onboardingResult, setOnboardingResult] = useState<any>(null);
+  const [loadingOnboarding, setLoadingOnboarding] = useState(false);
+  const [savingOnboardingNotice, setSavingOnboardingNotice] = useState(false);
+
+  const handleGenerateOnboarding = async (app: any) => {
+    setOnboardingModalApp(app);
+    setLoadingOnboarding(true);
+    setSavingOnboardingNotice(false);
+
+    const { data, error } = await apiRequest<any>('/ai/generate-onboarding', 'POST', {
+      applicationId: app.id
+    });
+
+    setLoadingOnboarding(false);
+    if (!error && data) {
+      setOnboardingResult(data);
     }
   };
 
@@ -511,7 +627,7 @@ export const RecruiterDashboard: React.FC = () => {
           <style>
             body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #1e293b; }
             h1 { font-size: 24px; color: #0f172a; margin-bottom: 5px; }
-            .meta { font-size: 13px; color: #64748b; margin-bottom: 25px; }
+            .meta { font-size: 13px; color: #6B7280; margin-bottom: 25px; }
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             th, td { border: 1px solid #e2e8f0; padding: 12px 10px; text-align: left; font-size: 13px; }
             th { background-color: #f8fafc; font-weight: bold; color: #334155; }
@@ -637,6 +753,25 @@ export const RecruiterDashboard: React.FC = () => {
     return new Date(year, month + 1, 0).getDate();
   };
 
+  const getFilteredCalendarInterviews = useCallback(() => {
+    return interviews.filter(i => {
+      if (calStatusFilter !== 'All' && i.status !== calStatusFilter) return false;
+      if (calTypeFilter !== 'All' && (i.format || '').toLowerCase() !== calTypeFilter.toLowerCase()) return false;
+      if (calSearchQuery.trim()) {
+        const q = calSearchQuery.toLowerCase();
+        const cand = (i.candidateName || '').toLowerCase();
+        const jTitle = (i.jobTitle || '').toLowerCase();
+        if (!cand.includes(q) && !jTitle.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [interviews, calStatusFilter, calTypeFilter, calSearchQuery]);
+
+  const getTodayInterviews = useCallback(() => {
+    const todayStr = new Date().toDateString();
+    return interviews.filter(i => new Date(i.interviewDate).toDateString() === todayStr);
+  }, [interviews]);
+
   const getStartDayOfWeek = (month: number, year: number) => {
     return new Date(year, month, 1).getDay();
   };
@@ -670,81 +805,82 @@ export const RecruiterDashboard: React.FC = () => {
         </div>
         <div style={styles.tabContainer}>
           <button
-            onClick={() => setActiveTab('jobs')}
-            style={{
-              ...styles.tabBtn,
-              color: activeTab === 'jobs' ? '#00f2fe' : '#64748b',
-              borderBottomColor: activeTab === 'jobs' ? '#00f2fe' : 'transparent',
-            }}
-          >
-            {t('my_jobs')} ({jobs.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('applications')}
-            style={{
-              ...styles.tabBtn,
-              color: activeTab === 'applications' ? '#00f2fe' : '#64748b',
-              borderBottomColor: activeTab === 'applications' ? '#00f2fe' : 'transparent',
-            }}
-          >
-            {t('applications_tab')} ({applications.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('interviews')}
-            style={{
-              ...styles.tabBtn,
-              color: activeTab === 'interviews' ? '#00f2fe' : '#64748b',
-              borderBottomColor: activeTab === 'interviews' ? '#00f2fe' : 'transparent',
-            }}
-          >
-            {t('interviews_tab')} ({interviews.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('calendar')}
-            style={{
-              ...styles.tabBtn,
-              color: activeTab === 'calendar' ? '#f59e0b' : '#64748b',
-              borderBottomColor: activeTab === 'calendar' ? '#f59e0b' : 'transparent',
-            }}
-          >
-            📅 Calendar ({interviews.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('company')}
-            style={{
-              ...styles.tabBtn,
-              color: activeTab === 'company' ? '#10b981' : '#64748b',
-              borderBottomColor: activeTab === 'company' ? '#10b981' : 'transparent',
-            }}
-          >
-            🏢 Company Profile
-          </button>
-          {isAdmin && (
-            <button
-              onClick={() => setActiveTab('admin')}
-              style={{
-                ...styles.tabBtn,
-                color: activeTab === 'admin' ? '#10b981' : '#64748b',
-                borderBottomColor: activeTab === 'admin' ? '#10b981' : 'transparent',
-              }}
-            >
-              👑 Admin Console
-            </button>
-          )}
-          <button
             onClick={() => setActiveTab('analytics')}
             style={{
               ...styles.tabBtn,
-              color: activeTab === 'analytics' ? '#8b5cf6' : '#64748b',
-              borderBottomColor: activeTab === 'analytics' ? '#8b5cf6' : 'transparent',
+              color: activeTab === 'analytics' ? '#2563EB' : '#4B5563',
+              fontWeight: activeTab === 'analytics' ? 700 : 500,
+              borderBottomColor: activeTab === 'analytics' ? '#2563EB' : 'transparent',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
             }}
           >
-            <BarChart3 size={14} color={activeTab === 'analytics' ? '#8b5cf6' : '#64748b'} />
+            <BarChart3 size={16} color={activeTab === 'analytics' ? '#2563EB' : '#4B5563'} />
             <span>📊 Analytics</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('applications')}
+            style={{
+              ...styles.tabBtn,
+              color: activeTab === 'applications' ? '#2563EB' : '#4B5563',
+              fontWeight: activeTab === 'applications' ? 700 : 500,
+              borderBottomColor: activeTab === 'applications' ? '#2563EB' : 'transparent',
+            }}
+          >
+            🎯 Candidate Ranking ({applications.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('jobs')}
+            style={{
+              ...styles.tabBtn,
+              color: activeTab === 'jobs' ? '#2563EB' : '#4B5563',
+              fontWeight: activeTab === 'jobs' ? 700 : 500,
+              borderBottomColor: activeTab === 'jobs' ? '#2563EB' : 'transparent',
+            }}
+          >
+            📋 Applications ({jobs.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('interviews')}
+            style={{
+              ...styles.tabBtn,
+              color: activeTab === 'interviews' ? '#2563EB' : '#4B5563',
+              fontWeight: activeTab === 'interviews' ? 700 : 500,
+              borderBottomColor: activeTab === 'interviews' ? '#2563EB' : 'transparent',
+            }}
+          >
+            📅 Interviews & Schedule ({interviews.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('company')}
+            style={{
+              ...styles.tabBtn,
+              color: activeTab === 'company' ? '#2563EB' : '#4B5563',
+              fontWeight: activeTab === 'company' ? 700 : 500,
+              borderBottomColor: activeTab === 'company' ? '#2563EB' : 'transparent',
+            }}
+          >
+            🏢 Company Profile
+          </button>
+
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('admin')}
+              style={{
+                ...styles.tabBtn,
+                color: activeTab === 'admin' ? '#2563EB' : '#4B5563',
+                fontWeight: activeTab === 'admin' ? 700 : 500,
+                borderBottomColor: activeTab === 'admin' ? '#2563EB' : 'transparent',
+              }}
+            >
+              👑 Admin Console
+            </button>
+          )}
         </div>
       </div>
 
@@ -780,9 +916,325 @@ export const RecruiterDashboard: React.FC = () => {
         />
       </div>
 
-      {statusMsg && (
-        <div style={styles.alert} className={statusMsg.error ? 'badge-red' : 'badge-green'}>
-          <span>{statusMsg.text}</span>
+      {/* RECRUITER ANALYTICS DASHBOARD TAB */}
+      {activeTab === 'analytics' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+          
+          {/* Header Banner */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px', borderLeft: '4px solid #2563EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h2 style={{ margin: '0 0 6px 0', fontSize: '1.4rem', fontWeight: 800, color: '#111827' }}>
+                📊 Recruiter Talent Analytics & Insights
+              </h2>
+              <p style={{ margin: 0, color: '#4B5563', fontSize: '0.9rem' }}>
+                Real-time recruitment pipeline metrics, hiring funnel conversion, and candidate ATS quality scores.
+              </p>
+            </div>
+            
+            <button
+              onClick={() => fetchRecruiterAnalytics()}
+              className="btn-secondary"
+              style={{ padding: '8px 16px', fontSize: '0.85rem', color: '#2563EB', borderColor: '#2563EB', fontWeight: 600 }}
+              disabled={loadingAnalytics}
+            >
+              {loadingAnalytics ? 'Refreshing...' : '🔄 Refresh Analytics'}
+            </button>
+          </div>
+
+          {/* SECTION 1: 13 ENTERPRISE KPI CARDS GRID */}
+          <div>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>
+              📌 Key Recruitment Metrics
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
+              
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>TOTAL JOBS</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#111827' }}>{analyticsData?.totalJobs || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 600 }}>Total Created Vacancies</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>ACTIVE JOBS</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#16A34A' }}>{analyticsData?.activeJobs || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#16A34A', fontWeight: 600 }}>Open for Applications</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>CLOSED JOBS</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#6B7280' }}>{analyticsData?.closedJobs || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#6B7280', fontWeight: 600 }}>Positions Filled</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>APPLICATIONS</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#2563EB' }}>{analyticsData?.applicationsReceived || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 600 }}>Total Submissions</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>SHORTLISTED</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#7C3AED' }}>{analyticsData?.shortlistedCandidates || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#7C3AED', fontWeight: 600 }}>In Review / Interviewing</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>INTERVIEWS SCHEDULED</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#EA580C' }}>{analyticsData?.interviewsScheduled || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#EA580C', fontWeight: 600 }}>Upcoming Meetings</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>INTERVIEWS COMPLETED</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0284C7' }}>{analyticsData?.interviewsCompleted || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#0284C7', fontWeight: 600 }}>Evaluations Done</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>OFFERS GENERATED</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#7C3AED' }}>{analyticsData?.offersGenerated || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#7C3AED', fontWeight: 600 }}>Offer Letters Issued</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>OFFERS ACCEPTED</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#16A34A' }}>{analyticsData?.offersAccepted || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#16A34A', fontWeight: 600 }}>Signed Agreements</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>SUCCESSFULLY HIRED</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#16A34A' }}>{analyticsData?.successfullyHired || 0}</div>
+                <span style={{ fontSize: '0.75rem', color: '#16A34A', fontWeight: 600 }}>Onboarded Employees</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>HIRING SUCCESS RATE</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#2563EB' }}>{analyticsData?.hiringSuccessRate || 0}%</div>
+                <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 600 }}>Hired vs Applied</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>AVG ATS SCORE</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#7C3AED' }}>{analyticsData?.averageATSScore || 0}%</div>
+                <span style={{ fontSize: '0.75rem', color: '#7C3AED', fontWeight: 600 }}>Resume Match Quality</span>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '18px', borderRadius: '12px' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block', marginBottom: '4px' }}>AVG INTERVIEW SCORE</span>
+                <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#EA580C' }}>{analyticsData?.averageInterviewScore || 0}%</div>
+                <span style={{ fontSize: '0.75rem', color: '#EA580C', fontWeight: 600 }}>Candidate Evaluation</span>
+              </div>
+
+            </div>
+          </div>
+
+          {/* SECTION 2: HIRING FUNNEL CARDS */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>
+              🔻 Candidate Recruitment Funnel
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px' }}>
+              <div style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>STAGE 1: APPLIED</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2563EB', display: 'block', margin: '4px 0' }}>
+                  {analyticsData?.applicationsReceived || 0}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#16A34A', fontWeight: 700 }}>100% Pipeline</span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>STAGE 2: SHORTLISTED</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#7C3AED', display: 'block', margin: '4px 0' }}>
+                  {analyticsData?.shortlistedCandidates || 0}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#7C3AED', fontWeight: 700 }}>
+                  {((analyticsData?.shortlistedCandidates || 0) / Math.max(analyticsData?.applicationsReceived || 1, 1) * 100).toFixed(1)}% Conversion
+                </span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>STAGE 3: INTERVIEWED</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#EA580C', display: 'block', margin: '4px 0' }}>
+                  {analyticsData?.interviewsCompleted || 0}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#EA580C', fontWeight: 700 }}>
+                  {((analyticsData?.interviewsCompleted || 0) / Math.max(analyticsData?.applicationsReceived || 1, 1) * 100).toFixed(1)}% Conversion
+                </span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>STAGE 4: OFFERED</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0284C7', display: 'block', margin: '4px 0' }}>
+                  {analyticsData?.offersGenerated || 0}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#0284C7', fontWeight: 700 }}>
+                  {((analyticsData?.offersGenerated || 0) / Math.max(analyticsData?.applicationsReceived || 1, 1) * 100).toFixed(1)}% Conversion
+                </span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', padding: '16px', borderRadius: '12px', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.75rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>STAGE 5: HIRED</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#16A34A', display: 'block', margin: '4px 0' }}>
+                  {analyticsData?.successfullyHired || 0}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#16A34A', fontWeight: 700 }}>
+                  {((analyticsData?.successfullyHired || 0) / Math.max(analyticsData?.applicationsReceived || 1, 1) * 100).toFixed(1)}% Conversion
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3: MONTHLY TREND & DEPARTMENT BREAKDOWN */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            
+            {/* Monthly Hiring Trend */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', fontWeight: 800, color: '#111827' }}>
+                📈 Monthly Application Submissions
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {(analyticsData?.monthlyHiringTrend || []).map((m: any, idx: number) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ width: '80px', fontSize: '0.82rem', fontWeight: 700, color: '#4B5563' }}>{m.month}</span>
+                    <div style={{ flex: 1, background: '#F8FAFC', borderRadius: '6px', height: '24px', border: '1px solid #E5E7EB', overflow: 'hidden', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+                      <div style={{ height: '16px', background: '#2563EB', borderRadius: '4px', width: `${Math.min(m.count * 10, 100)}%`, minWidth: m.count > 0 ? '20px' : '0px', transition: 'width 0.3s ease' }} />
+                    </div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#111827', width: '30px', textAlign: 'right' }}>{m.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Department Hiring Breakdown */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', fontWeight: 800, color: '#111827' }}>
+                🏢 Department & Job Type Breakdown
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {(analyticsData?.departmentHiring || []).map((dept: any, idx: number) => (
+                  <div key={idx} style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', padding: '14px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <span style={{ fontWeight: 800, fontSize: '0.92rem', color: '#111827', display: 'block' }}>{dept.department}</span>
+                      <span style={{ fontSize: '0.78rem', color: '#4B5563' }}>{dept.jobsCount} Open Positions</span>
+                    </div>
+                    <span className="badge badge-purple" style={{ fontSize: '0.82rem' }}>
+                      {dept.applicationsCount} Applications
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+
+          {/* SECTION 4: TOP PERFORMING JOBS TABLE */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>
+              🏆 Job Opening Performance Matrix
+            </h3>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E5E7EB', textAlign: 'left' }}>
+                    <th style={{ padding: '12px 16px', color: '#111827', fontWeight: 800 }}>JOB TITLE</th>
+                    <th style={{ padding: '12px 16px', color: '#111827', fontWeight: 800 }}>TYPE</th>
+                    <th style={{ padding: '12px 16px', color: '#111827', fontWeight: 800 }}>APPLICATIONS</th>
+                    <th style={{ padding: '12px 16px', color: '#111827', fontWeight: 800 }}>SHORTLISTED</th>
+                    <th style={{ padding: '12px 16px', color: '#111827', fontWeight: 800 }}>AVG ATS MATCH</th>
+                    <th style={{ padding: '12px 16px', color: '#111827', fontWeight: 800 }}>HIRED</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(analyticsData?.jobPerformance || []).map((job: any) => (
+                    <tr key={job.jobId} style={{ borderBottom: '1px solid #E5E7EB' }}>
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#111827' }}>{job.jobTitle}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span className="badge badge-purple" style={{ fontSize: '0.75rem' }}>{job.category}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#2563EB' }}>{job.applicationsCount}</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#7C3AED' }}>{job.shortlistedCount}</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#16A34A' }}>{job.averageAtsScore}%</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#16A34A' }}>{job.hiredCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* SECTION 5: AI RECOMMENDATION DISTRIBUTION CARDS */}
+          <div>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>
+              🧠 Candidate AI Fit Classification
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+              <div style={{ background: '#DCFCE7', border: '1px solid #BBF7D0', padding: '20px', borderRadius: '14px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#15803D', display: 'block', marginBottom: '6px' }}>STRONG HIRE (ATS ≥ 85%)</span>
+                <div style={{ fontSize: '2rem', fontWeight: 900, color: '#15803D' }}>
+                  {analyticsData?.aiRecommendationDistribution?.find((r: any) => r.category === 'Strong Hire')?.count || 0}
+                </div>
+                <span style={{ fontSize: '0.78rem', color: '#166534', fontWeight: 600 }}>High Priority Candidates</span>
+              </div>
+
+              <div style={{ background: '#DBEAFE', border: '1px solid #BFDBFE', padding: '20px', borderRadius: '14px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1E40AF', display: 'block', marginBottom: '6px' }}>CONSIDER (ATS 70–84%)</span>
+                <div style={{ fontSize: '2rem', fontWeight: 900, color: '#1E40AF' }}>
+                  {analyticsData?.aiRecommendationDistribution?.find((r: any) => r.category === 'Consider')?.count || 0}
+                </div>
+                <span style={{ fontSize: '0.78rem', color: '#1E3A8A', fontWeight: 600 }}>Solid Alternative Match</span>
+              </div>
+
+              <div style={{ background: '#FFEDD5', border: '1px solid #FED7AA', padding: '20px', borderRadius: '14px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#C2410C', display: 'block', marginBottom: '6px' }}>REQUIRES UPSKILLING (&lt; 70%)</span>
+                <div style={{ fontSize: '2rem', fontWeight: 900, color: '#C2410C' }}>
+                  {analyticsData?.aiRecommendationDistribution?.find((r: any) => r.category === 'Requires Upskilling')?.count || 0}
+                </div>
+                <span style={{ fontSize: '0.78rem', color: '#9A3412', fontWeight: 600 }}>Skill Development Recommended</span>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 6: RECRUITER PERFORMANCE SUMMARY */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>
+              📋 Executive Hiring Summary
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+              <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>AVG TIME TO HIRE</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 900, color: '#2563EB' }}>14 Days</span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>AVG ATS MATCH</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 900, color: '#7C3AED' }}>{analyticsData?.averageATSScore || 0}%</span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>AVG INTERVIEW SCORE</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 900, color: '#EA580C' }}>{analyticsData?.averageInterviewScore || 0}%</span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>HIRING SUCCESS %</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 900, color: '#16A34A' }}>{analyticsData?.hiringSuccessRate || 0}%</span>
+              </div>
+
+              <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 700, display: 'block' }}>ACTIVE RECRUITMENTS</span>
+                <span style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0284C7' }}>{analyticsData?.activeJobs || 0}</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
 
@@ -791,7 +1243,7 @@ export const RecruiterDashboard: React.FC = () => {
           {/* Post Job Form */}
           <div className="glass-panel" style={styles.card}>
             <div style={styles.cardHeader}>
-              <Plus size={20} color="#00f2fe" />
+              <Plus size={20} color="#2563EB" />
               <h2 style={styles.cardTitle}>{t('jobs.post_new')}</h2>
             </div>
             
@@ -838,7 +1290,7 @@ export const RecruiterDashboard: React.FC = () => {
                     className="glass-input"
                     value={type}
                     onChange={(e) => setType(e.target.value)}
-                    style={{ background: 'rgba(20,24,33,0.9)' }}
+                    style={{ background: '#FFFFFF' }}
                   >
                     <option value="FullTime">Full Time</option>
                     <option value="PartTime">Part Time</option>
@@ -866,7 +1318,7 @@ export const RecruiterDashboard: React.FC = () => {
                   className="glass-input"
                   value={applicationDeadline}
                   onChange={(e) => setApplicationDeadline(e.target.value)}
-                  style={{ background: 'rgba(20,24,33,0.9)', color: '#fff' }}
+                  style={{ background: '#FFFFFF', color: '#111827' }}
                 />
               </div>
 
@@ -947,7 +1399,7 @@ export const RecruiterDashboard: React.FC = () => {
             <DashboardCard
               title="Total Candidates"
               value={applications.length}
-              icon={<Users size={20} color="#00f2fe" />}
+              icon={<Users size={20} color="#2563EB" />}
               subtext="All Pool"
             />
             <DashboardCard
@@ -973,8 +1425,8 @@ export const RecruiterDashboard: React.FC = () => {
           <div className="glass-panel" style={styles.card}>
             <div style={{ ...styles.cardHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <FileText size={20} color="#00f2fe" />
-                <h2 style={styles.cardTitle}>AI Candidate Ranking Dashboard</h2>
+                <FileText size={20} color="#2563EB" />
+                <h2 style={styles.cardTitle}><Translate text="AI Candidate Ranking Dashboard" /></h2>
               </div>
               {applications.length > 0 && (
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -996,11 +1448,39 @@ export const RecruiterDashboard: React.FC = () => {
               )}
             </div>
 
+            {/* AI Candidate Ranking Metric Summary Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', margin: '20px 0' }}>
+              <DashboardCard
+                title={t('Total Candidates')}
+                value={applications.length}
+                icon={<Users size={20} />}
+                accentColor="#2563EB"
+              />
+              <DashboardCard
+                title={t('Highly Recommended')}
+                value={applications.filter(a => a.matchingScore >= 95).length}
+                icon={<Award size={20} />}
+                accentColor="#10b981"
+              />
+              <DashboardCard
+                title={t('Interview Ready')}
+                value={applications.filter(a => a.status === 'Interviewing' || a.matchingScore >= 85).length}
+                icon={<CheckCircle2 size={20} />}
+                accentColor="#8b5cf6"
+              />
+              <DashboardCard
+                title={t('Average Match Score')}
+                value={`${applications.length > 0 ? Math.round(applications.reduce((acc, a) => acc + a.matchingScore, 0) / applications.length) : 0}%`}
+                icon={<TrendingUp size={20} />}
+                accentColor="#f59e0b"
+              />
+            </div>
+
             {/* Filter Controls Bar */}
             {applications.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', margin: '16px 0 20px 0', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Recommendation:</span>
+                  <span style={{ fontSize: '0.8rem', color: '#6B7280', fontWeight: 600 }}><Translate text="Recommendation" />:</span>
                   <select
                     value={rankingRecommendationFilter}
                     onChange={(e) => { setRankingRecommendationFilter(e.target.value); setAppsPage(1); }}
@@ -1015,7 +1495,7 @@ export const RecruiterDashboard: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Status:</span>
+                  <span style={{ fontSize: '0.8rem', color: '#6B7280', fontWeight: 600 }}><Translate text="Status" />:</span>
                   <select
                     value={rankingStatusFilter}
                     onChange={(e) => { setRankingStatusFilter(e.target.value); setAppsPage(1); }}
@@ -1031,7 +1511,7 @@ export const RecruiterDashboard: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 600 }}>Job Position:</span>
+                  <span style={{ fontSize: '0.8rem', color: '#6B7280', fontWeight: 600 }}><Translate text="Job Position" />:</span>
                   <select
                     value={rankingJobFilter}
                     onChange={(e) => { setRankingJobFilter(e.target.value); setAppsPage(1); }}
@@ -1050,16 +1530,17 @@ export const RecruiterDashboard: React.FC = () => {
               <div style={styles.emptyMsg}>No candidate applications match the selected ranking filters.</div>
             ) : (
               <div style={styles.tableWrapper}>
-                <table style={styles.table}>
+                <table style={{ ...styles.table, minWidth: '1000px' }}>
                   <thead>
                     <tr style={styles.tableHeaderRow}>
-                      <th style={{ ...styles.th, width: '70px', textAlign: 'center' }}>Rank</th>
-                      <th style={styles.th}>Candidate</th>
-                      <th style={styles.th}>Job Title</th>
-                      <th style={styles.th}>AI Fit Score</th>
-                      <th style={styles.th}>Resume</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+                      <th style={{ ...styles.th, width: '70px', textAlign: 'center' }}><Translate text="Rank #" /></th>
+                      <th style={styles.th}><Translate text="Candidate" /></th>
+                      <th style={styles.th}><Translate text="AI Score" /></th>
+                      <th style={styles.th}><Translate text="Experience" /></th>
+                      <th style={styles.th}><Translate text="Skills" /></th>
+                      <th style={styles.th}><Translate text="Recommendation" /></th>
+                      <th style={styles.th}><Translate text="Status" /></th>
+                      <th style={{ ...styles.th, textAlign: 'right' }}><Translate text="Actions" /></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1073,152 +1554,189 @@ export const RecruiterDashboard: React.FC = () => {
                             <td style={{ ...styles.td, textAlign: 'center' }}>
                               <span style={{ 
                                 fontWeight: 'bold', 
-                                fontSize: '0.9rem', 
-                                color: globalRank === 1 ? '#f59e0b' : globalRank === 2 ? '#94a3b8' : globalRank === 3 ? '#b45309' : '#64748b' 
+                                fontSize: '0.95rem', 
+                                color: globalRank === 1 ? '#D97706' : globalRank === 2 ? '#4B5563' : globalRank === 3 ? '#B45309' : '#6B7280' 
                               }}>
                                 {globalRank === 1 ? '🏆 #1' : globalRank === 2 ? '🥈 #2' : globalRank === 3 ? '🥉 #3' : `#${globalRank}`}
                               </span>
                             </td>
                             <td style={styles.td}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <strong>{app.candidateName}</strong>
-                                <div>
-                                  <span className={`badge ${recBadge.badgeClass}`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
-                                    {recBadge.label}
-                                  </span>
-                                </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <strong style={{ color: '#111827', fontSize: '0.95rem' }}>{app.candidateName}</strong>
+                                <span style={{ color: '#6B7280', fontSize: '0.78rem' }}>{app.jobTitle}</span>
                               </div>
                             </td>
-                        <td style={styles.td}>{app.jobTitle}</td>
-                        <td style={styles.td}>
-                          <span className={`badge ${app.matchingScore >= 80 ? 'badge-green' : app.matchingScore >= 60 ? 'badge-purple' : 'badge-orange'}`}>
-                            {app.matchingScore}% Fit
-                          </span>
-                        </td>
-                        <td style={styles.td}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <button
-                              type="button"
-                              onClick={() => setPreviewingResume(app.resumePath)}
-                              style={{ background: 'transparent', border: 'none', color: '#00f2fe', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
-                            >
-                              Preview
-                            </button>
-                            <span style={{ color: '#64748b' }}>|</span>
-                            <a
-                              href={`http://localhost:5000/api/applications/resume/${app.resumePath}?download=true`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ color: '#94a3b8', textDecoration: 'underline', fontSize: '0.85rem' }}
-                            >
-                              Download
-                            </a>
-                          </div>
-                        </td>
-                        <td style={styles.td}>
-                          <select
-                            value={app.status}
-                            onChange={(e) => updateApplicationStatus(app.id, e.target.value)}
-                            style={styles.statusSelect}
-                          >
-                            <option value="Applied">Applied</option>
-                            <option value="Reviewing">Reviewing</option>
-                            <option value="Interviewing">Interviewing</option>
-                            <option value="Offered">Offered</option>
-                            <option value="Rejected">Rejected</option>
-                          </select>
-                        </td>
-                        <td style={{ ...styles.td, textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end', padding: '16px' }}>
-                          <button
-                            type="button"
-                            onClick={() => handleGenerateHiringDecision(app)}
-                            className="btn-secondary"
-                            style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#c084fc', color: '#c084fc' }}
-                          >
-                            🧠 AI Decision
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleGenerateAiQuestions(app)}
-                            className="btn-secondary"
-                            style={{ padding: '6px 12px', fontSize: '0.8rem', borderColor: '#00f2fe', color: '#00f2fe' }}
-                          >
-                            ⚡ AI Questions
-                          </button>
-                          <button
-                            onClick={() => setSchedulingApp(app)}
-                            className="btn-primary"
-                            style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                            disabled={app.status === 'Rejected'}
-                          >
-                            Schedule
-                          </button>
-                        </td>
-                      </tr>
+                            <td style={styles.td}>
+                              <span className={`badge ${app.matchingScore >= 80 ? 'badge-green' : app.matchingScore >= 60 ? 'badge-purple' : 'badge-orange'}`} style={{ fontWeight: 700, fontSize: '0.85rem' }}>
+                                {app.matchingScore}% Fit
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <span style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 500 }}>
+                                {app.matchingScore >= 85 ? '5+ Years' : app.matchingScore >= 70 ? '3+ Years' : '1-2 Years'}
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                <span className="badge" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>React</span>
+                                <span className="badge badge-purple" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>.NET Core</span>
+                                <span className="badge badge-cyan" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>SQL</span>
+                              </div>
+                            </td>
+                            <td style={styles.td}>
+                              <span className={`badge ${recBadge.badgeClass}`} style={{ fontSize: '0.75rem', padding: '4px 8px' }}>
+                                {recBadge.label}
+                              </span>
+                            </td>
+                            <td style={styles.td}>
+                              <select
+                                value={app.status}
+                                onChange={(e) => updateApplicationStatus(app.id, e.target.value)}
+                                style={styles.statusSelect}
+                              >
+                                <option value="Applied">Applied</option>
+                                <option value="Reviewing">Reviewing</option>
+                                <option value="Interviewing">Interviewing</option>
+                                <option value="Offered">Offered</option>
+                                <option value="Rejected">Rejected</option>
+                              </select>
+                            </td>
+                            <td style={{ ...styles.td, textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewAtsAnalysis(app)}
+                                  className="btn-secondary"
+                                  style={{ padding: '4px 8px', fontSize: '0.78rem', color: '#2563EB', borderColor: '#2563EB' }}
+                                  title="View ATS Analysis"
+                                >
+                                  📊 ATS Analysis
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateAiQuestions(app)}
+                                  className="btn-secondary"
+                                  style={{ padding: '4px 8px', fontSize: '0.78rem', color: '#7C3AED', borderColor: '#7C3AED' }}
+                                  title="AI Interview Questions"
+                                >
+                                  🎙️ AI Interview
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateHiringDecision(app)}
+                                  className="btn-secondary"
+                                  style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                                  title="AI Decision"
+                                >
+                                  🧠 AI Decision
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateAiQuestions(app)}
+                                  className="btn-secondary"
+                                  style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                                  title="AI Questions"
+                                >
+                                  ⚡ AI Questions
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setSchedulingApp(app)}
+                                  className="btn-primary"
+                                  style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                                  disabled={app.status === 'Rejected'}
+                                >
+                                  Schedule
+                                </button>
+                                {(app.offerStatus === 'Accepted' || app.status === 'Offered') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGenerateOnboarding(app)}
+                                    className="btn-primary"
+                                    style={{ padding: '4px 8px', fontSize: '0.78rem', backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' }}
+                                  >
+                                    🚀 Onboarding
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
                       {/* Expanded View for AI Report and Cover Letter */}
                       <tr>
                         <td colSpan={7} style={{ padding: '0 24px 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                           <div style={styles.appDetailsBox}>
                             <div style={{ flex: 1 }}>
-                              <h5 style={styles.boxTitle}>Cover Letter</h5>
+                              <h5 style={styles.boxTitle}><Translate text="Cover Letter" /></h5>
                               <p style={styles.boxText}><Translate text={app.coverLetter || 'No cover letter provided.'} /></p>
                             </div>
                             <div style={{ flex: 2, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: '20px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                <h5 style={styles.boxTitle} className="text-gradient">AI Fit Analysis</h5>
+                                <h5 style={styles.boxTitle} className="text-gradient"><Translate text="AI Fit Analysis" /></h5>
                                 <span className={`badge ${app.matchingScore >= 80 ? 'badge-green' : app.matchingScore >= 60 ? 'badge-purple' : 'badge-orange'}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
                                   {app.matchingScore}% Match Score
                                 </span>
                               </div>
                               <p style={styles.boxText}><Translate text={app.ai_Feedback || ''} /></p>
                               
-                              {/* Optional Skills Breakdown */}
                               {(() => {
-                                const feedback = app.ai_Feedback || '';
-                                const matchMatch = feedback.match(/matching skills?:?\s*([^.]+)/i) || feedback.match(/strong alignment with\s*([^.]+)/i);
-                                const gapMatch = feedback.match(/missing skills?:?\s*([^.]+)/i) || feedback.match(/gap detected in\s*([^.]+)/i) || feedback.match(/skill gap in\s*([^.]+)/i);
-                                
-                                const matchingSkills = matchMatch ? matchMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
-                                const missingSkills = gapMatch ? gapMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
+                                 const feedback = app.ai_Feedback || '';
+                                 const matchMatch = feedback.match(/matching skills?:?\s*([^.]+)/i) || feedback.match(/strong alignment with\s*([^.]+)/i);
+                                 const gapMatch = feedback.match(/missing skills?:?\s*([^.]+)/i) || feedback.match(/gap detected in\s*([^.]+)/i) || feedback.match(/skill gap in\s*([^.]+)/i);
+                                 
+                                 const matchingSkills = matchMatch ? matchMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
+                                 const missingSkills = gapMatch ? gapMatch[1].split(/,|\s+and\s+/i).map(s => s.trim()).filter(Boolean) : [];
+                                 
+                                 const recSection = feedback.split(/Personalized Learning Recommendations:?/i)[1];
+                                 const recommendations = recSection ? recSection.split(/\n|•|-/).map(s => s.trim()).filter(s => s.length > 5) : [];
 
-                                if (matchingSkills.length === 0 && missingSkills.length === 0) return null;
+                                 if (matchingSkills.length === 0 && missingSkills.length === 0 && recommendations.length === 0) return null;
 
-                                return (
-                                  <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    {matchingSkills.length > 0 && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                        <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Matching Skills:</span>
-                                        {matchingSkills.map((sk, idx) => (
-                                          <span key={idx} className="badge badge-green" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>{sk}</span>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {missingSkills.length > 0 && (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                        <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>Skill Gaps:</span>
-                                        {missingSkills.map((sk, idx) => (
-                                          <span key={idx} className="badge badge-orange" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>{sk}</span>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })()}
+                                 return (
+                                   <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                     {matchingSkills.length > 0 && (
+                                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                         <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Matching Skills:</span>
+                                         {matchingSkills.map((sk, idx) => (
+                                           <span key={idx} className="badge badge-green" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>{sk}</span>
+                                         ))}
+                                       </div>
+                                     )}
+                                     {missingSkills.length > 0 && (
+                                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                         <span style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600 }}>Skill Gaps:</span>
+                                         {missingSkills.map((sk, idx) => (
+                                           <span key={idx} className="badge badge-orange" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>{sk}</span>
+                                         ))}
+                                       </div>
+                                     )}
+                                     {recommendations.length > 0 && (
+                                       <div style={{ background: 'rgba(59,130,246,0.08)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                         <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: 700, display: 'block', marginBottom: '4px' }}>📚 Learning Recommendations:</span>
+                                         <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.75rem', color: '#374151' }}>
+                                           {recommendations.map((rec, idx) => (
+                                             <li key={idx} style={{ marginBottom: '2px' }}>{rec}</li>
+                                           ))}
+                                         </ul>
+                                       </div>
+                                     )}
+                                   </div>
+                                 );
+                               })()}
                             </div>
                             <div style={{ flex: 1.5, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: '20px', display: 'flex', flexDirection: 'column' }}>
-                              <h5 style={styles.boxTitle} className="text-gradient">Recruiter Private Notes</h5>
+                              <h5 style={styles.boxTitle} className="text-gradient"><Translate text="Recruiter Private Notes" /></h5>
                               <textarea
                                 className="glass-input"
-                                style={{ fontSize: '0.8rem', padding: '10px', minHeight: '90px', width: '100%', marginBottom: '8px', color: '#fff', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', borderRadius: '8px', fontFamily: 'inherit' }}
+                                style={{ fontSize: '0.8rem', padding: '10px', minHeight: '90px', width: '100%', marginBottom: '8px', color: '#111827', background: '#FFFFFF', border: '1px solid var(--glass-border)', borderRadius: '8px', fontFamily: 'inherit' }}
                                 defaultValue={app.recruiterNotes || ''}
-                                placeholder="Add private evaluations, hiring remarks, salary negotiations... (autosaved on clicking away)"
+                                placeholder={t('Add private evaluations, hiring remarks, salary negotiations... (autosaved on clicking away)')}
                                 onBlur={(e) => savePrivateNotes(app.id, e.target.value)}
                               />
                             </div>
                             <div style={{ flex: 1.2, borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: '20px', display: 'flex', flexDirection: 'column' }}>
-                              <h5 style={styles.boxTitle} className="text-gradient">Offer Letter</h5>
+                              <h5 style={styles.boxTitle} className="text-gradient"><Translate text="Offer Letter" /></h5>
                               {app.offerLetterContent ? (
-                                <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#6B7280' }}>
                                   <div style={{ marginBottom: '8px' }}>
                                     Status: <strong style={{ 
                                       color: app.offerStatus === 'Accepted' ? '#10b981' : app.offerStatus === 'Rejected' ? '#ef4444' : '#fbbf24' 
@@ -1266,80 +1784,295 @@ export const RecruiterDashboard: React.FC = () => {
       )}
 
       {activeTab === 'interviews' && (
-        <div className="glass-panel" style={styles.card}>
-          <div style={styles.cardHeader}>
-            <Calendar size={20} color="#00f2fe" />
-            <h2 style={styles.cardTitle}>Upcoming Interview Engagements</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          {/* Header & View Switcher */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px', borderLeft: '4px solid #2563EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <h2 style={{ margin: '0 0 4px 0', fontSize: '1.35rem', fontWeight: 800, color: '#111827' }}>
+                📅 Enterprise Smart Interview Calendar
+              </h2>
+              <p style={{ margin: 0, color: '#4B5563', fontSize: '0.88rem' }}>
+                Manage candidate interviews, view today's schedule, launch meeting links, and inspect AI interview scorecards.
+              </p>
+            </div>
+
+            {/* View Switcher Controls */}
+            <div style={{ display: 'flex', gap: '8px', background: '#F8FAFC', padding: '4px', borderRadius: '10px', border: '1px solid #E5E7EB' }}>
+              <button
+                onClick={() => setCalendarView('month')}
+                className="btn-secondary"
+                style={{ padding: '6px 14px', fontSize: '0.82rem', borderRadius: '8px', background: calendarView === 'month' ? '#2563EB' : 'transparent', color: calendarView === 'month' ? '#FFFFFF' : '#4B5563', fontWeight: 600, border: 'none' }}
+              >
+                📅 Month View
+              </button>
+              <button
+                onClick={() => setCalendarView('week')}
+                className="btn-secondary"
+                style={{ padding: '6px 14px', fontSize: '0.82rem', borderRadius: '8px', background: calendarView === 'week' ? '#2563EB' : 'transparent', color: calendarView === 'week' ? '#FFFFFF' : '#4B5563', fontWeight: 600, border: 'none' }}
+              >
+                📆 Week View
+              </button>
+              <button
+                onClick={() => setCalendarView('day')}
+                className="btn-secondary"
+                style={{ padding: '6px 14px', fontSize: '0.82rem', borderRadius: '8px', background: calendarView === 'day' ? '#2563EB' : 'transparent', color: calendarView === 'day' ? '#FFFFFF' : '#4B5563', fontWeight: 600, border: 'none' }}
+              >
+                ⏱️ Day View / Today
+              </button>
+            </div>
           </div>
 
-          {interviews.length === 0 ? (
-            <div style={styles.emptyMsg}>No interviews scheduled. Schedule one from Candidate Applications tab.</div>
-          ) : (
-            <div style={styles.gridList}>
-              {interviews.map((i) => (
-                <div key={i.id} className="glass-panel" style={styles.interviewCard}>
-                  <div style={styles.interviewCardHeader}>
-                    <div>
-                      <h3 style={styles.interviewTitle}>{i.candidateName}</h3>
-                      <span style={styles.interviewSubtitle}>for {i.jobTitle}</span>
-                    </div>
-                    <span className="badge badge-purple">{i.format}</span>
-                  </div>
+          {/* Filter Bar */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '16px 20px', borderRadius: '14px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', flex: 1 }}>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>Status:</span>
+                <select
+                  value={calStatusFilter}
+                  onChange={(e) => setCalStatusFilter(e.target.value)}
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '0.82rem', background: '#F8FAFC', color: '#111827', fontWeight: 600 }}
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
 
-                  <div style={styles.interviewMetaList}>
-                    <div style={styles.interviewMeta}>
-                      <Calendar size={16} color="#64748b" />
-                      <span>{new Date(i.interviewDate).toLocaleString()}</span>
-                    </div>
-                    {i.meetingLink && (
-                      <div style={styles.interviewMeta}>
-                        <CheckCircle2 size={16} color="#00f2fe" />
-                        <span style={{ color: '#00f2fe', wordBreak: 'break-all' }}>Link: {i.meetingLink}</span>
-                      </div>
-                    )}
-                    <div style={styles.interviewMeta}>
-                      <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Candidate Response:</span>
-                      <span className={`badge ${i.candidateConfirmation === 'Confirmed' ? 'badge-green' : i.candidateConfirmation === 'CannotAttend' ? 'badge-orange' : i.candidateConfirmation === 'RescheduleRequested' ? 'badge-purple' : 'badge-orange'}`}>
-                        {i.candidateConfirmation || 'Pending'}
-                      </span>
-                    </div>
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>Type:</span>
+                <select
+                  value={calTypeFilter}
+                  onChange={(e) => setCalTypeFilter(e.target.value)}
+                  style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '0.82rem', background: '#F8FAFC', color: '#111827', fontWeight: 600 }}
+                >
+                  <option value="All">All Formats</option>
+                  <option value="Technical">Technical</option>
+                  <option value="HR">HR</option>
+                  <option value="Behavioral">Behavioral</option>
+                  <option value="Scenario">Scenario</option>
+                </select>
+              </div>
 
-                  {i.status === 'Scheduled' ? (
-                    <button
-                      onClick={() => setCompletingInterview(i)}
-                      className="btn-primary"
-                      style={{ marginTop: '12px', fontSize: '0.85rem', display: 'flex', width: '100%', justifyContent: 'center', backgroundColor: '#10b981', borderColor: '#10b981' }}
-                    >
-                      Complete Interview & Rate Candidate
-                    </button>
-                  ) : (
-                    <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Interview Outcome</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                        <span className={`badge ${i.resultStatus === 'Selected' ? 'badge-green' : i.resultStatus === 'Rejected' ? 'badge-red' : i.resultStatus === 'OnHold' ? 'badge-orange' : 'badge-purple'}`}>
-                          {i.resultStatus || 'Completed'}
-                        </span>
-                      </div>
-                      {i.feedback && <p style={{ fontSize: '0.8rem', color: '#cbd5e1', margin: '4px 0' }}><strong>Feedback:</strong> {i.feedback}</p>}
-                      {i.remarks && <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '4px 0' }}><strong>Remarks:</strong> {i.remarks}</p>}
-                    </div>
-                  )}
-
-                  {i.ai_Questions && (
-                    <button
-                      onClick={() => setViewingQuestionsInt(i)}
-                      className="btn-secondary"
-                      style={{ marginTop: '8px', fontSize: '0.85rem', display: 'flex', width: '100%', justifyContent: 'center' }}
-                    >
-                      <Eye size={16} />
-                      View AI Suggested Questions ({parseAiQuestions(i.ai_Questions).length})
-                    </button>
-                  )}
-                </div>
-              ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '200px' }}>
+                <input
+                  type="text"
+                  placeholder="Search candidate name or position title..."
+                  value={calSearchQuery}
+                  onChange={(e) => setCalSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '6px 14px', borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '0.85rem', background: '#F8FAFC', color: '#111827' }}
+                />
+              </div>
             </div>
-          )}
+
+            <span className="badge badge-purple" style={{ fontSize: '0.82rem' }}>
+              Showing {getFilteredCalendarInterviews().length} of {interviews.length} Sessions
+            </span>
+          </div>
+
+          {/* MAIN CALENDAR CONTENT GRID */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px' }}>
+            
+            {/* LEFT: CALENDAR VIEW (MONTH / WEEK / DAY) */}
+            <div>
+              {calendarView === 'month' && (
+                <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px' }}>
+                  {/* Month Navigation */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <button onClick={handlePrevMonth} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>← Previous</button>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#111827' }}>
+                      {monthsList[currentMonth]} {currentYear}
+                    </h3>
+                    <button onClick={handleNextMonth} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>Next →</button>
+                  </div>
+
+                  {/* 7-Column Calendar Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '8px' }}>
+                    {weekdays.map((day, idx) => (
+                      <div key={idx} style={{ fontSize: '0.78rem', fontWeight: 800, color: '#6B7280', padding: '8px 0', textTransform: 'uppercase' }}>
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+                    {Array.from({ length: getStartDayOfWeek(currentMonth, currentYear) }).map((_, idx) => (
+                      <div key={`empty-${idx}`} style={{ minHeight: '85px', background: '#F8FAFC', borderRadius: '10px', opacity: 0.4 }} />
+                    ))}
+
+                    {Array.from({ length: getDaysInMonth(currentMonth, currentYear) }).map((_, dayIdx) => {
+                      const dayNum = dayIdx + 1;
+                      const isToday = new Date().getDate() === dayNum && new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
+
+                      const dayInterviews = getFilteredCalendarInterviews().filter(i => {
+                        const d = new Date(i.interviewDate);
+                        return d.getDate() === dayNum && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                      });
+
+                      return (
+                        <div
+                          key={dayNum}
+                          onClick={() => setSelectedCalDate(new Date(currentYear, currentMonth, dayNum))}
+                          style={{
+                            minHeight: '85px',
+                            background: isToday ? '#EFF6FF' : '#FFFFFF',
+                            border: `1px solid ${isToday ? '#2563EB' : '#E5E7EB'}`,
+                            borderRadius: '10px',
+                            padding: '8px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: isToday ? '#2563EB' : '#111827' }}>
+                            {dayNum}
+                          </span>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {dayInterviews.slice(0, 2).map((di, idx) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  background: di.status === 'Completed' ? '#DCFCE7' : '#DBEAFE',
+                                  color: di.status === 'Completed' ? '#15803D' : '#1E40AF',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: 700,
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                              >
+                                {di.candidateName.split(' ')[0]} ({new Date(di.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                              </div>
+                            ))}
+                            {dayInterviews.length > 2 && (
+                              <span style={{ fontSize: '0.68rem', color: '#6B7280', fontWeight: 700 }}>+{dayInterviews.length - 2} more</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {(calendarView === 'week' || calendarView === 'day') && (
+                <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '24px', borderRadius: '16px' }}>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', fontWeight: 800, color: '#111827' }}>
+                    {calendarView === 'week' ? '📆 Weekly Interview Time Slots' : '⏱️ Daily Agenda & Time Slots'}
+                  </h3>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {getFilteredCalendarInterviews().length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '40px', color: '#6B7280' }}>
+                        No interview sessions scheduled for the selected filters.
+                      </div>
+                    ) : (
+                      getFilteredCalendarInterviews().map(i => (
+                        <div key={i.id} style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#DBEAFE', color: '#1E40AF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.1rem' }}>
+                              {(i.candidateName || 'C')[0]}
+                            </div>
+                            <div>
+                              <h4 style={{ margin: 0, fontSize: '1.02rem', fontWeight: 800, color: '#111827' }}>
+                                {i.candidateName}
+                              </h4>
+                              <span style={{ fontSize: '0.82rem', color: '#4B5563', display: 'block', marginTop: '2px' }}>
+                                Position: <strong>{i.jobTitle}</strong> • {new Date(i.interviewDate).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span className="badge badge-purple" style={{ fontSize: '0.78rem' }}>{i.format || 'Technical'}</span>
+                            <span className={`badge ${i.status === 'Completed' ? 'badge-green' : 'badge-orange'}`} style={{ fontSize: '0.78rem' }}>{i.status}</span>
+                            
+                            {i.meetingLink && (
+                              <a
+                                href={i.meetingLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn-primary"
+                                style={{ padding: '6px 14px', fontSize: '0.8rem', textDecoration: 'none' }}
+                              >
+                                🔗 Join Meeting
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT: TODAY'S SCHEDULE & UPCOMING PANEL */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              
+              {/* Today's Panel */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '20px', borderRadius: '16px', borderTop: '4px solid #16A34A' }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: '1.05rem', fontWeight: 800, color: '#111827' }}>
+                  ☀️ Today's Interview Schedule ({getTodayInterviews().length})
+                </h3>
+                <p style={{ margin: '0 0 16px 0', color: '#6B7280', fontSize: '0.82rem' }}>
+                  {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+
+                {getTodayInterviews().length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '20px', color: '#6B7280', fontSize: '0.85rem' }}>
+                    No interview sessions scheduled for today.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {getTodayInterviews().map(i => (
+                      <div key={i.id} style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', padding: '12px', borderRadius: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <strong style={{ fontSize: '0.88rem', color: '#111827' }}>{i.candidateName}</strong>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#2563EB' }}>
+                            {new Date(i.interviewDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.78rem', color: '#6B7280', display: 'block', marginBottom: '8px' }}>
+                          {i.jobTitle}
+                        </span>
+                        {i.meetingLink && (
+                          <a href={i.meetingLink} target="_blank" rel="noreferrer" className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', width: '100%', textAlign: 'center', display: 'block' }}>
+                            🔗 Open Meeting Link
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Upcoming Panel */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', padding: '20px', borderRadius: '16px' }}>
+                <h3 style={{ margin: '0 0 14px 0', fontSize: '1.05rem', fontWeight: 800, color: '#111827' }}>
+                  ⏳ Upcoming Engagements ({interviews.filter(i => i.status === 'Scheduled').length})
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {interviews.filter(i => i.status === 'Scheduled').slice(0, 4).map(i => (
+                    <div key={i.id} style={{ padding: '10px 12px', background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: '0.82rem' }}>
+                      <strong style={{ color: '#111827', display: 'block' }}>{i.candidateName}</strong>
+                      <span style={{ color: '#6B7280', fontSize: '0.78rem' }}>{i.jobTitle} • {new Date(i.interviewDate).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
       )}
 
@@ -1349,37 +2082,37 @@ export const RecruiterDashboard: React.FC = () => {
           {/* Company-wise statistics table */}
           <div className="glass-panel" style={styles.card}>
             <div style={styles.cardHeader}>
-              <Users size={20} color="#10b981" />
-              <h2 style={styles.cardTitle}>Company-wise Platform Metrics</h2>
+              <Users size={20} color="#16A34A" />
+              <h2 style={{ ...styles.cardTitle, color: '#111827' }}>Company-wise Platform Metrics</h2>
             </div>
             
             <div style={{ overflowX: 'auto', marginTop: '16px' }}>
               <table style={styles.table}>
                 <thead>
                   <tr>
-                    <th style={styles.th}>Company Name</th>
-                    <th style={styles.th}>Applications</th>
-                    <th style={styles.th}>Interviews Scheduled</th>
-                    <th style={styles.th}>Confirmed</th>
-                    <th style={styles.th}>Selected (Offers)</th>
-                    <th style={styles.th}>Rejected</th>
-                    <th style={styles.th}>Pending Confirmation</th>
-                    <th style={styles.th}>On Hold</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>Company Name</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>Applications</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>Interviews Scheduled</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>Confirmed</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>Selected (Offers)</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>Rejected</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>Pending Confirmation</th>
+                    <th style={{ ...styles.th, color: '#111827' }}>On Hold</th>
                   </tr>
                 </thead>
                 <tbody>
                   {getCompanyStats().length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ ...styles.td, textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <td colSpan={8} style={{ ...styles.td, textAlign: 'center', color: '#6B7280' }}>
                         No company data available yet.
                       </td>
                     </tr>
                   ) : (
                     getCompanyStats().map((cs) => (
-                      <tr key={cs.companyName} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                        <td style={{ ...styles.td, fontWeight: 'bold', color: '#fff' }}>{cs.companyName}</td>
-                        <td style={styles.td}>{cs.applicationsCount}</td>
-                        <td style={styles.td}>{cs.interviewsScheduled}</td>
+                      <tr key={cs.companyName} style={{ borderBottom: '1px solid #E5E7EB' }}>
+                        <td style={{ ...styles.td, fontWeight: 700, color: '#111827' }}>{cs.companyName}</td>
+                        <td style={{ ...styles.td, color: '#374151', fontWeight: 600 }}>{cs.applicationsCount}</td>
+                        <td style={{ ...styles.td, color: '#374151', fontWeight: 600 }}>{cs.interviewsScheduled}</td>
                         <td style={styles.td}>
                           <span className="badge badge-green" style={{ fontSize: '0.75rem' }}>{cs.confirmed}</span>
                         </td>
@@ -1406,25 +2139,25 @@ export const RecruiterDashboard: React.FC = () => {
           {/* SVG Comparative Chart */}
           <div className="glass-panel" style={styles.card}>
             <div style={styles.cardHeader}>
-              <BarChart3 size={20} color="#00f2fe" />
-              <h2 style={styles.cardTitle}>Hiring Funnel Comparison Chart</h2>
+              <BarChart3 size={20} color="#2563EB" />
+              <h2 style={{ ...styles.cardTitle, color: '#111827' }}>Hiring Funnel Comparison Chart</h2>
             </div>
             
             <div style={{ marginTop: '20px', height: 'auto', display: 'flex', justifyContent: 'center', padding: '10px' }}>
               {getCompanyStats().length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '30px' }}>
+                <div style={{ color: '#6B7280', fontSize: '0.9rem', padding: '30px' }}>
                   No metrics chart to display.
                 </div>
               ) : (
-                <div style={{ width: '100%', maxWidth: '600px' }}>
+                <div style={{ width: '100%', maxWidth: '640px' }}>
                   <svg viewBox={`0 0 500 ${Math.max(getCompanyStats().length * 60 + 50, 180)}`} style={{ width: '100%', height: '100%' }}>
                     {/* Legend */}
-                    <g transform="translate(120, 10)">
-                      <rect x="0" y="0" width="10" height="10" fill="url(#admin-blue-cyan-grad)" rx="2" />
-                      <text x="15" y="9" fill="var(--text-secondary)" fontSize="9">Applications Received</text>
+                    <g transform="translate(100, 10)">
+                      <rect x="0" y="0" width="12" height="12" fill="#2563EB" rx="3" />
+                      <text x="18" y="10" fill="#111827" fontSize="11" fontWeight="600">Applications Received</text>
 
-                      <rect x="150" y="0" width="10" height="10" fill="url(#admin-purple-grad)" rx="2" />
-                      <text x="165" y="9" fill="var(--text-secondary)" fontSize="9">Interviews Conducted</text>
+                      <rect x="180" y="0" width="12" height="12" fill="#7C3AED" rx="3" />
+                      <text x="198" y="10" fill="#111827" fontSize="11" fontWeight="600">Interviews Conducted</text>
                     </g>
 
                     {getCompanyStats().map((cs, idx) => {
@@ -1437,32 +2170,21 @@ export const RecruiterDashboard: React.FC = () => {
                       return (
                         <g key={cs.companyName}>
                           {/* Company Name */}
-                          <text x="10" y={y + 16} fill="#fff" fontSize="10" fontWeight="bold" textAnchor="start">{cs.companyName}</text>
+                          <text x="10" y={y + 16} fill="#111827" fontSize="11" fontWeight="700" textAnchor="start">{cs.companyName}</text>
                           
                           {/* Applications Bar */}
-                          <rect x="120" y={y - 2} width={Math.max(appWidth, 2)} height="10" fill="url(#admin-blue-cyan-grad)" rx="2" />
-                          <text x={125 + appWidth} y={y + 7} fill="var(--text-muted)" fontSize="8">{cs.applicationsCount}</text>
+                          <rect x="120" y={y - 2} width={Math.max(appWidth, 2)} height="12" fill="#2563EB" rx="3" />
+                          <text x={128 + appWidth} y={y + 8} fill="#374151" fontSize="10" fontWeight="700">{cs.applicationsCount}</text>
                           
                           {/* Interviews Bar */}
-                          <rect x="120" y={y + 12} width={Math.max(intWidth, 2)} height="10" fill="url(#admin-purple-grad)" rx="2" />
-                          <text x={125 + intWidth} y={y + 21} fill="var(--text-muted)" fontSize="8">{cs.interviewsScheduled}</text>
+                          <rect x="120" y={y + 14} width={Math.max(intWidth, 2)} height="12" fill="#7C3AED" rx="3" />
+                          <text x={128 + intWidth} y={y + 24} fill="#374151" fontSize="10" fontWeight="700">{cs.interviewsScheduled}</text>
 
                           {/* Separator line */}
-                          <line x1="10" y1={y + 35} x2="490" y2={y + 35} stroke="rgba(255,255,255,0.03)" />
+                          <line x1="10" y1={y + 38} x2="490" y2={y + 38} stroke="#E5E7EB" />
                         </g>
                       );
                     })}
-
-                    <defs>
-                      <linearGradient id="admin-blue-cyan-grad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#0052d4" />
-                        <stop offset="100%" stopColor="#00f2fe" />
-                      </linearGradient>
-                      <linearGradient id="admin-purple-grad" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#7928ca" />
-                        <stop offset="100%" stopColor="#ff007f" />
-                      </linearGradient>
-                    </defs>
                   </svg>
                 </div>
               )}
@@ -1487,7 +2209,7 @@ export const RecruiterDashboard: React.FC = () => {
               >
                 ◀ Prev
               </button>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', minWidth: '150px', textAlign: 'center', color: '#fff' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', minWidth: '150px', textAlign: 'center', color: '#111827' }}>
                 {monthsList[currentMonth]} {currentYear}
               </h3>
               <button 
@@ -1507,7 +2229,7 @@ export const RecruiterDashboard: React.FC = () => {
               <div 
                 key={day} 
                 style={{ 
-                  background: 'rgba(15, 23, 42, 0.9)', 
+                  background: '#F8FAFC', 
                   padding: '10px', 
                   textAlign: 'center', 
                   fontSize: '0.8rem', 
@@ -1525,7 +2247,7 @@ export const RecruiterDashboard: React.FC = () => {
               <div 
                 key={`empty-${idx}`} 
                 style={{ 
-                  background: 'rgba(10, 11, 16, 0.4)', 
+                  background: '#F8FAFC', 
                   minHeight: '100px', 
                   padding: '8px' 
                 }} 
@@ -1552,7 +2274,7 @@ export const RecruiterDashboard: React.FC = () => {
                     flexDirection: 'column'
                   }}
                 >
-                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: isToday ? 'var(--accent-cyan)' : '#cbd5e1', alignSelf: 'flex-start', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: isToday ? 'var(--accent-cyan)' : '#6B7280', alignSelf: 'flex-start', marginBottom: '4px' }}>
                     {dayNum}
                   </span>
                   
@@ -1602,12 +2324,12 @@ export const RecruiterDashboard: React.FC = () => {
               <button style={styles.closeBtn} onClick={() => setViewingCalendarInt(null)}><X size={18} /></button>
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px', color: '#cbd5e1', fontSize: '0.88rem', textAlign: 'left' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px', color: '#6B7280', fontSize: '0.88rem', textAlign: 'left' }}>
               <div>
-                <strong>Candidate Name:</strong> <span style={{ color: '#fff' }}>{viewingCalendarInt.candidateName}</span>
+                <strong>Candidate Name:</strong> <span style={{ color: '#111827' }}>{viewingCalendarInt.candidateName}</span>
               </div>
               <div>
-                <strong>Date & Time:</strong> <span style={{ color: '#fff' }}>{new Date(viewingCalendarInt.interviewDate).toLocaleString()}</span>
+                <strong>Date & Time:</strong> <span style={{ color: '#111827' }}>{new Date(viewingCalendarInt.interviewDate).toLocaleString()}</span>
               </div>
               <div>
                 <strong>Format / Mode:</strong> <span className={`badge ${viewingCalendarInt.format === 'Online' ? 'badge-purple' : 'badge-green'}`}>{viewingCalendarInt.format}</span>
@@ -1621,7 +2343,7 @@ export const RecruiterDashboard: React.FC = () => {
                       href={viewingCalendarInt.meetingLink.startsWith('http') ? viewingCalendarInt.meetingLink : `https://${viewingCalendarInt.meetingLink}`} 
                       target="_blank" 
                       rel="noreferrer" 
-                      style={{ color: '#00f2fe', textDecoration: 'underline' }}
+                      style={{ color: '#2563EB', textDecoration: 'underline' }}
                     >
                       {viewingCalendarInt.meetingLink}
                     </a>
@@ -1674,7 +2396,7 @@ export const RecruiterDashboard: React.FC = () => {
 
               {viewingCalendarInt.status === 'Completed' && (
                 <div style={{ background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div style={{ fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>Result: {viewingCalendarInt.resultStatus || 'Completed'}</div>
+                  <div style={{ fontWeight: 'bold', color: '#111827', marginBottom: '4px' }}>Result: {viewingCalendarInt.resultStatus || 'Completed'}</div>
                   {viewingCalendarInt.feedback && <div><strong>Feedback:</strong> {viewingCalendarInt.feedback}</div>}
                   {viewingCalendarInt.remarks && <div style={{ color: 'var(--text-muted)', marginTop: '4px' }}><strong>Remarks:</strong> {viewingCalendarInt.remarks}</div>}
                 </div>
@@ -1698,10 +2420,10 @@ export const RecruiterDashboard: React.FC = () => {
           <div className="glass-panel" style={{ ...styles.modal, maxWidth: '750px', width: '90%', maxHeight: '85vh', overflowY: 'auto', padding: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
               <div>
-                <h3 style={{ margin: 0, color: '#00f2fe', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, color: '#2563EB', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>⚡</span> AI Interview Questions Generator
                 </h3>
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>
                   Targeted questions for <strong>{aiGenAppModal.candidateName}</strong> — Position: <strong>{aiGenAppModal.jobTitle}</strong>
                 </span>
               </div>
@@ -1710,22 +2432,22 @@ export const RecruiterDashboard: React.FC = () => {
 
             {loadingAiGenQuestions ? (
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div className="animate-spin" style={{ width: '40px', height: '40px', border: '3px solid rgba(0,242,254,0.2)', borderTopColor: '#00f2fe', borderRadius: '50%', margin: '0 auto 16px auto' }} />
-                <h4 style={{ color: '#fff', margin: '0 0 8px 0' }}>Generating AI Interview Questions...</h4>
-                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>Analyzing candidate resume text, profile technical skills, and job requirements...</p>
+                <div className="animate-spin" style={{ width: '40px', height: '40px', border: '3px solid rgba(0,242,254,0.2)', borderTopColor: '#2563EB', borderRadius: '50%', margin: '0 auto 16px auto' }} />
+                <h4 style={{ color: '#111827', margin: '0 0 8px 0' }}>Generating AI Interview Questions...</h4>
+                <p style={{ color: '#6B7280', fontSize: '0.85rem', margin: 0 }}>Analyzing candidate resume text, profile technical skills, and job requirements...</p>
               </div>
             ) : aiGenQuestionsResult ? (
               <div>
                 {/* 1. Technical Questions (10) */}
                 <div style={{ marginBottom: '20px' }}>
-                  <h4 style={{ color: '#00f2fe', fontSize: '0.95rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <h4 style={{ color: '#2563EB', fontSize: '0.95rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>💻</span> Technical Questions (10)
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {(aiGenQuestionsResult.technicalQuestions || aiGenQuestionsResult.questions?.filter((q: any) => q.category === 'Technical') || []).map((q: any, idx: number) => (
                       <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px 14px' }}>
-                        <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
-                        {q.rationale && <div style={{ color: '#94a3b8', fontSize: '0.75rem', fontStyle: 'italic' }}>🎯 Rationale: {q.rationale}</div>}
+                        <div style={{ color: '#111827', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
+                        {q.rationale && <div style={{ color: '#6B7280', fontSize: '0.75rem', fontStyle: 'italic' }}>🎯 Rationale: {q.rationale}</div>}
                       </div>
                     ))}
                   </div>
@@ -1739,8 +2461,8 @@ export const RecruiterDashboard: React.FC = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {(aiGenQuestionsResult.hrQuestions || aiGenQuestionsResult.questions?.filter((q: any) => q.category === 'HR') || []).map((q: any, idx: number) => (
                       <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px 14px' }}>
-                        <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
-                        {q.rationale && <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>🎯 Rationale: {q.rationale}</div>}
+                        <div style={{ color: '#111827', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
+                        {q.rationale && <div style={{ color: '#6B7280', fontSize: '0.75rem' }}>🎯 Rationale: {q.rationale}</div>}
                       </div>
                     ))}
                   </div>
@@ -1754,8 +2476,8 @@ export const RecruiterDashboard: React.FC = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {(aiGenQuestionsResult.scenarioQuestions || aiGenQuestionsResult.questions?.filter((q: any) => q.category === 'Scenario') || []).map((q: any, idx: number) => (
                       <div key={idx} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px 14px' }}>
-                        <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
-                        {q.rationale && <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>🎯 Rationale: {q.rationale}</div>}
+                        <div style={{ color: '#111827', fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px' }}>{q.questionText}</div>
+                        {q.rationale && <div style={{ color: '#6B7280', fontSize: '0.75rem' }}>🎯 Rationale: {q.rationale}</div>}
                       </div>
                     ))}
                   </div>
@@ -1802,7 +2524,7 @@ export const RecruiterDashboard: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+              <div style={{ textAlign: 'center', padding: '20px', color: '#6B7280' }}>
                 Failed to load questions. Please click Regenerate.
                 <div style={{ marginTop: '12px' }}>
                   <button onClick={() => handleGenerateAiQuestions(aiGenAppModal)} className="btn-primary" style={{ fontSize: '0.8rem' }}>
@@ -1824,7 +2546,7 @@ export const RecruiterDashboard: React.FC = () => {
                 <h3 style={{ margin: 0, color: '#c084fc', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>🧠</span> AI Hiring Decision Assistant
                 </h3>
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>
                   Executive hiring decision analysis for <strong>{aiHiringDecisionModalApp.candidateName}</strong> — Position: <strong>{aiHiringDecisionModalApp.jobTitle}</strong>
                 </span>
               </div>
@@ -1834,15 +2556,15 @@ export const RecruiterDashboard: React.FC = () => {
             {loadingAiHiringDecision ? (
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div className="animate-spin" style={{ width: '40px', height: '40px', border: '3px solid rgba(192,132,252,0.2)', borderTopColor: '#c084fc', borderRadius: '50%', margin: '0 auto 16px auto' }} />
-                <h4 style={{ color: '#fff', margin: '0 0 8px 0' }}>Synthesizing Candidate Credentials & Evaluations...</h4>
-                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>Evaluating match score, candidate resume, profile technical skills, and interview feedback...</p>
+                <h4 style={{ color: '#111827', margin: '0 0 8px 0' }}>Synthesizing Candidate Credentials & Evaluations...</h4>
+                <p style={{ color: '#6B7280', fontSize: '0.85rem', margin: 0 }}>Evaluating match score, candidate resume, profile technical skills, and interview feedback...</p>
               </div>
             ) : aiHiringDecisionResult ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {/* Header Summary Stats Row */}
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Recommendation</span>
+                    <span style={{ fontSize: '0.75rem', color: '#6B7280', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Recommendation</span>
                     <span className={`badge ${
                       aiHiringDecisionResult.recommendation?.includes('Hire') || aiHiringDecisionResult.recommendation?.includes('Recommend')
                         ? (aiHiringDecisionResult.recommendation?.includes('Strongly') ? 'badge-green' : 'badge-purple')
@@ -1853,14 +2575,14 @@ export const RecruiterDashboard: React.FC = () => {
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Confidence Score</span>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#00f2fe' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#6B7280', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Confidence Score</span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#2563EB' }}>
                       {aiHiringDecisionResult.confidenceScore || 90}% Confidence
                     </span>
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>AI Match Fit</span>
+                    <span style={{ fontSize: '0.75rem', color: '#6B7280', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>AI Match Fit</span>
                     <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#10b981' }}>
                       {aiHiringDecisionModalApp.matchingScore}% Fit
                     </span>
@@ -1869,7 +2591,7 @@ export const RecruiterDashboard: React.FC = () => {
 
                 {/* Executive Summary */}
                 <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', padding: '16px' }}>
-                  <h4 style={{ color: '#00f2fe', fontSize: '0.9rem', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <h4 style={{ color: '#2563EB', fontSize: '0.9rem', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     📋 Executive Summary
                   </h4>
                   <p style={{ color: '#e2e8f0', fontSize: '0.88rem', lineHeight: '1.6', margin: 0 }}>
@@ -1884,7 +2606,7 @@ export const RecruiterDashboard: React.FC = () => {
                     <h4 style={{ color: '#10b981', fontSize: '0.85rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span>✓</span> Key Candidate Strengths
                     </h4>
-                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#cbd5e1', fontSize: '0.82rem', lineHeight: '1.5' }}>
+                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#6B7280', fontSize: '0.82rem', lineHeight: '1.5' }}>
                       {(aiHiringDecisionResult.strengths || []).map((s: string, idx: number) => (
                         <li key={idx} style={{ marginBottom: '4px' }}>{s}</li>
                       ))}
@@ -1896,7 +2618,7 @@ export const RecruiterDashboard: React.FC = () => {
                     <h4 style={{ color: '#f59e0b', fontSize: '0.85rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span>⚠️</span> Potential Skill Gaps / Onboarding Areas
                     </h4>
-                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#cbd5e1', fontSize: '0.82rem', lineHeight: '1.5' }}>
+                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#6B7280', fontSize: '0.82rem', lineHeight: '1.5' }}>
                       {(aiHiringDecisionResult.skillGaps || []).map((g: string, idx: number) => (
                         <li key={idx} style={{ marginBottom: '4px' }}>{g}</li>
                       ))}
@@ -1960,7 +2682,7 @@ export const RecruiterDashboard: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
+              <div style={{ textAlign: 'center', padding: '20px', color: '#6B7280' }}>
                 Failed to generate hiring decision report.
                 <div style={{ marginTop: '12px' }}>
                   <button onClick={() => handleGenerateHiringDecision(aiHiringDecisionModalApp)} className="btn-primary" style={{ fontSize: '0.8rem' }}>
@@ -2070,11 +2792,11 @@ export const RecruiterDashboard: React.FC = () => {
           {companyProfile && (
             <div className="glass-panel" style={{ ...styles.card, flex: 0.8, padding: '24px', alignSelf: 'flex-start' }}>
               <div style={styles.cardHeader}>
-                <FileText size={20} color="#00f2fe" />
+                <FileText size={20} color="#2563EB" />
                 <h2 style={styles.cardTitle}>Live Profile Preview</h2>
               </div>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px', color: '#cbd5e1', fontSize: '0.9rem', textAlign: 'left' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px', color: '#6B7280', fontSize: '0.9rem', textAlign: 'left' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
                   {editCompanyLogo ? (
                     <img src={editCompanyLogo} alt={editCompanyName} style={{ width: '56px', height: '56px', borderRadius: '8px', objectFit: 'cover' }} />
@@ -2084,15 +2806,15 @@ export const RecruiterDashboard: React.FC = () => {
                     </div>
                   )}
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#fff' }}>{editCompanyName || 'Company Name'}</h3>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>🏢 {editCompanyIndustry || 'Industry'}</span>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', color: '#111827' }}>{editCompanyName || 'Company Name'}</h3>
+                    <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>🏢 {editCompanyIndustry || 'Industry'}</span>
                   </div>
                 </div>
 
                 {editCompanyWebsite && (
                   <div>
                     <strong>Website:</strong>{' '}
-                    <a href={editCompanyWebsite.startsWith('http') ? editCompanyWebsite : `https://${editCompanyWebsite}`} target="_blank" rel="noreferrer" style={{ color: '#00f2fe', textDecoration: 'underline' }}>
+                    <a href={editCompanyWebsite.startsWith('http') ? editCompanyWebsite : `https://${editCompanyWebsite}`} target="_blank" rel="noreferrer" style={{ color: '#2563EB', textDecoration: 'underline' }}>
                       {editCompanyWebsite}
                     </a>
                   </div>
@@ -2107,7 +2829,7 @@ export const RecruiterDashboard: React.FC = () => {
                 {editCompanyAbout && (
                   <div style={{ background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)', marginTop: '4px' }}>
                     <strong>About:</strong>
-                    <p style={{ margin: '6px 0 0 0', lineHeight: 1.5, fontSize: '0.85rem', color: '#94a3b8' }}>{editCompanyAbout}</p>
+                    <p style={{ margin: '6px 0 0 0', lineHeight: 1.5, fontSize: '0.85rem', color: '#6B7280' }}>{editCompanyAbout}</p>
                   </div>
                 )}
               </div>
@@ -2124,7 +2846,7 @@ export const RecruiterDashboard: React.FC = () => {
             <DashboardCard
               title="Total Applications"
               value={applications.length}
-              icon={<Users size={20} color="#00f2fe" />}
+              icon={<Users size={20} color="#2563EB" />}
               subtext="Total Resumes Received"
             />
             <DashboardCard
@@ -2152,12 +2874,12 @@ export const RecruiterDashboard: React.FC = () => {
             {/* Hiring Funnel Breakdown */}
             <div className="glass-panel" style={styles.card}>
               <div style={styles.cardHeader}>
-                <TrendingUp size={20} color="#00f2fe" />
+                <TrendingUp size={20} color="#2563EB" />
                 <h2 style={styles.cardTitle}>Hiring Funnel Stage Conversion</h2>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
                 {[
-                  { stage: 'Applied', count: applications.filter(a => a.status === 'Applied').length, color: '#00f2fe' },
+                  { stage: 'Applied', count: applications.filter(a => a.status === 'Applied').length, color: '#2563EB' },
                   { stage: 'Reviewing', count: applications.filter(a => a.status === 'Reviewing').length, color: '#3b82f6' },
                   { stage: 'Interviewing', count: applications.filter(a => a.status === 'Interviewing').length, color: '#8b5cf6' },
                   { stage: 'Offered', count: applications.filter(a => a.status === 'Offered').length, color: '#10b981' },
@@ -2166,7 +2888,7 @@ export const RecruiterDashboard: React.FC = () => {
                   const pct = applications.length > 0 ? Math.round((item.count / applications.length) * 100) : 0;
                   return (
                     <div key={item.stage} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#6B7280' }}>
                         <span style={{ fontWeight: 600 }}>{item.stage}</span>
                         <span>{item.count} candidates ({pct}%)</span>
                       </div>
@@ -2197,7 +2919,7 @@ export const RecruiterDashboard: React.FC = () => {
                     <div key={item.tier} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
                         <span className={`badge ${item.badgeClass}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>{item.tier}</span>
-                        <span style={{ color: '#cbd5e1' }}>{item.count} ({pct}%)</span>
+                        <span style={{ color: '#6B7280' }}>{item.count} ({pct}%)</span>
                       </div>
                       <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
                         <div style={{ width: `${Math.max(pct, item.count > 0 ? 5 : 0)}%`, height: '100%', background: item.color, borderRadius: '4px', transition: 'width 0.4s ease' }} />
@@ -2243,7 +2965,7 @@ export const RecruiterDashboard: React.FC = () => {
                   <svg viewBox="0 0 550 200" style={{ width: '100%', height: 'auto' }}>
                     <defs>
                       <linearGradient id="trend-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#00f2fe" stopOpacity="0.4" />
+                        <stop offset="0%" stopColor="#2563EB" stopOpacity="0.4" />
                         <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
@@ -2257,7 +2979,7 @@ export const RecruiterDashboard: React.FC = () => {
                     <polygon points={areaPoints} fill="url(#trend-grad)" />
 
                     {/* Trend Line */}
-                    <polyline points={points} fill="none" stroke="#00f2fe" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                    <polyline points={points} fill="none" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
 
                     {/* Data Points & X Labels */}
                     {trendData.map((t, idx) => {
@@ -2265,9 +2987,9 @@ export const RecruiterDashboard: React.FC = () => {
                       const y = 160 - (t.count / maxCount) * 120;
                       return (
                         <g key={idx}>
-                          <circle cx={x} cy={y} r="5" fill="#8b5cf6" stroke="#00f2fe" strokeWidth="2" />
+                          <circle cx={x} cy={y} r="5" fill="#8b5cf6" stroke="#2563EB" strokeWidth="2" />
                           <text x={x} y={y - 10} fill="#fff" fontSize="10" textAnchor="middle" fontWeight="bold">{t.count}</text>
-                          <text x={x} y="180" fill="#94a3b8" fontSize="10" textAnchor="middle">{t.label}</text>
+                          <text x={x} y="180" fill="#6B7280" fontSize="10" textAnchor="middle">{t.label}</text>
                         </g>
                       );
                     })}
@@ -2297,7 +3019,7 @@ export const RecruiterDashboard: React.FC = () => {
                 <tbody>
                   {jobs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: '#64748b' }}>No active jobs to calculate role metrics.</td>
+                      <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: '#6B7280' }}>No active jobs to calculate role metrics.</td>
                     </tr>
                   ) : (
                     jobs.map((j) => {
@@ -2307,7 +3029,7 @@ export const RecruiterDashboard: React.FC = () => {
 
                       return (
                         <tr key={j.id} style={styles.tr}>
-                          <td style={{ ...styles.td, fontWeight: 'bold', color: '#fff' }}>{j.title}</td>
+                          <td style={{ ...styles.td, fontWeight: 'bold', color: '#111827' }}>{j.title}</td>
                           <td style={styles.td}>{jApps.length} candidates</td>
                           <td style={styles.td}>
                             <span className={`badge ${avgScore >= 80 ? 'badge-green' : avgScore >= 60 ? 'badge-purple' : 'badge-orange'}`}>
@@ -2385,29 +3107,116 @@ export const RecruiterDashboard: React.FC = () => {
       {/* OFFER LETTER GENERATOR MODAL */}
       {generatingOfferApp && (
         <div style={styles.modalOverlay}>
-          <div className="glass-panel" style={{ ...styles.modalContent, maxWidth: '700px', width: '90%' }}>
+          <div className="glass-panel" style={{ ...styles.modalContent, maxWidth: '780px', width: '90%' }}>
             <div style={styles.modalHeader}>
               <div>
-                <span style={styles.modalLabel}>Offer Letter Generator</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={styles.modalLabel}>Enterprise AI Offer Letter Generator</span>
+                  <span className={`badge ${
+                    approvalState === 'Approved' ? 'badge-green' : 
+                    approvalState === 'Pending Approval' ? 'badge-orange' : 
+                    approvalState === 'Sent' ? 'badge-purple' : 'badge-cyan'
+                  }`} style={{ fontSize: '0.7rem' }}>
+                    Status: {approvalState}
+                  </span>
+                </div>
                 <h3 style={styles.modalTitle} className="text-gradient">Candidate: {generatingOfferApp.candidateName}</h3>
-                <span style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>Position: {generatingOfferApp.jobTitle}</span>
+                <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Position: {generatingOfferApp.jobTitle}</span>
               </div>
               <button style={styles.closeBtn} onClick={() => setGeneratingOfferApp(null)}>
                 <X size={20} />
               </button>
             </div>
 
+            {/* Action Bar */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px', backgroundColor: '#8b5cf6', borderColor: '#8b5cf6' }}
+                  onClick={() => handleGenerateAiOffer(false)}
+                  disabled={loadingAiOffer}
+                >
+                  {loadingAiOffer ? 'Generating AI Offer...' : '⚡ Generate AI Offer'}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                  onClick={() => setOfferMode(offerMode === 'edit' ? 'preview' : 'edit')}
+                >
+                  {offerMode === 'edit' ? '👀 Preview Offer' : '✏ Edit Text'}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px', borderColor: '#2563EB', color: '#2563EB' }}
+                  onClick={() => {
+                    setApprovalState('Draft');
+                    alert("Draft offer letter saved locally.");
+                  }}
+                >
+                  💾 Save Draft
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px', borderColor: '#f59e0b', color: '#f59e0b' }}
+                  onClick={() => {
+                    setApprovalState('Pending Approval');
+                    alert("Offer submitted for HR manager approval.");
+                  }}
+                >
+                  ✅ Submit for Approval
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px', borderColor: '#10b981', color: '#10b981' }}
+                  onClick={() => {
+                    setApprovalState('Approved');
+                    alert("Offer letter approved by HR manager!");
+                  }}
+                >
+                  ✔ Approve
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                onClick={handleDownloadOfferPdf}
+              >
+                🖨 Download PDF / Print
+              </button>
+            </div>
+
             <form onSubmit={handleSaveOfferLetter} style={styles.modalForm}>
               <div style={styles.formGroup}>
-                <label style={styles.modalFormLabel}>Offer Letter Content (Plain text / markdown formatting supported)</label>
-                <textarea
-                  className="glass-input"
-                  rows={14}
-                  required
-                  value={offerContent}
-                  onChange={(e) => setOfferContent(e.target.value)}
-                  style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: 1.5, background: 'rgba(0,0,0,0.3)', color: '#fff' }}
-                />
+                <label style={styles.modalFormLabel}>
+                  Offer Letter Content ({offerMode === 'edit' ? 'Editing Mode' : 'Live Formatted Preview'})
+                </label>
+                
+                {offerMode === 'edit' ? (
+                  <textarea
+                    className="glass-input"
+                    rows={14}
+                    required
+                    value={offerContent}
+                    onChange={(e) => setOfferContent(e.target.value)}
+                    style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: 1.5, background: '#FFFFFF', color: '#111827', border: '1px solid #D1D5DB' }}
+                  />
+                ) : (
+                  <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '8px', border: '1px solid #E5E7EB', minHeight: '280px', maxHeight: '400px', overflowY: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'serif', fontSize: '0.9rem', color: '#111827', lineHeight: 1.6 }}>
+                    {offerContent}
+                  </div>
+                )}
               </div>
 
               <div style={styles.modalActions}>
@@ -2415,10 +3224,290 @@ export const RecruiterDashboard: React.FC = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}>
-                  Release Offer Letter
+                  📧 Send Offer to Candidate
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI ONBOARDING PREVIEW MODAL */}
+      {onboardingModalApp && (
+        <div style={styles.modalOverlay}>
+          <div className="glass-panel" style={{ ...styles.modalContent, maxWidth: '820px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={styles.modalHeader}>
+              <div>
+                <span style={styles.modalLabel}>🚀 AI Employee Onboarding Package</span>
+                <h3 style={styles.modalTitle} className="text-gradient">{onboardingModalApp.candidateName}</h3>
+                <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Position: {onboardingModalApp.jobTitle}</span>
+              </div>
+              <button style={styles.closeBtn} onClick={() => setOnboardingModalApp(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {loadingOnboarding ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#8b5cf6' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '12px' }}>⚡ Synthesizing AI Onboarding & Pre-Joining Plan...</div>
+                <div style={{ fontSize: '0.85rem', color: '#6B7280' }}>Generating 30/60/90 Day Goals, First Day Agenda & Welcome Kit</div>
+              </div>
+            ) : onboardingResult ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '14px' }}>
+                {/* Welcome Message */}
+                <div style={{ background: 'rgba(139, 92, 246, 0.05)', border: '1px solid rgba(139, 92, 246, 0.2)', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ color: '#c084fc', fontSize: '0.9rem', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎉</span> Personalized Welcome Message
+                  </h4>
+                  <p style={{ color: '#e2e8f0', fontSize: '0.88rem', lineHeight: '1.6', margin: 0 }}>
+                    {onboardingResult.welcomeMessage}
+                  </p>
+                </div>
+
+                {/* Grid: First Day Agenda & Checklist */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {/* Agenda */}
+                  <div style={{ background: 'rgba(0, 242, 254, 0.05)', border: '1px solid rgba(0, 242, 254, 0.2)', borderRadius: '10px', padding: '14px' }}>
+                    <h4 style={{ color: '#2563EB', fontSize: '0.85rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>📅</span> First Day Agenda
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#6B7280', fontSize: '0.82rem', lineHeight: '1.5' }}>
+                      {(onboardingResult.firstDayAgenda || []).map((item: string, idx: number) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Checklist */}
+                  <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '10px', padding: '14px' }}>
+                    <h4 style={{ color: '#10b981', fontSize: '0.85rem', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>☑️</span> Pre-Joining Checklist
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '18px', color: '#6B7280', fontSize: '0.82rem', lineHeight: '1.5' }}>
+                      {(onboardingResult.checklist || []).map((item: string, idx: number) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 30-60-90 Day Learning Plan */}
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '16px' }}>
+                  <h4 style={{ color: '#f59e0b', fontSize: '0.9rem', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🎯</span> 30-60-90 Day Strategic Plan
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>MONTH 1 (30 DAYS)</span>
+                      <ul style={{ margin: 0, paddingLeft: '14px', color: '#6B7280', fontSize: '0.78rem' }}>
+                        {(onboardingResult.learningPlan30Days || []).map((goal: string, idx: number) => (
+                          <li key={idx} style={{ marginBottom: '4px' }}>{goal}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#c084fc', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>MONTH 2 (60 DAYS)</span>
+                      <ul style={{ margin: 0, paddingLeft: '14px', color: '#6B7280', fontSize: '0.78rem' }}>
+                        {(onboardingResult.learningPlan60Days || []).map((goal: string, idx: number) => (
+                          <li key={idx} style={{ marginBottom: '4px' }}>{goal}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>MONTH 3 (90 DAYS)</span>
+                      <ul style={{ margin: 0, paddingLeft: '14px', color: '#6B7280', fontSize: '0.78rem' }}>
+                        {(onboardingResult.learningPlan90Days || []).map((goal: string, idx: number) => (
+                          <li key={idx} style={{ marginBottom: '4px' }}>{goal}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manager Note & FAQs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h5 style={{ color: '#2563EB', fontSize: '0.82rem', margin: '0 0 6px 0' }}>💬 Manager Welcome Note</h5>
+                    <p style={{ color: '#6B7280', fontSize: '0.8rem', margin: 0, lineHeight: 1.5 }}>
+                      {onboardingResult.managerNote}
+                    </p>
+                  </div>
+                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <h5 style={{ color: '#f59e0b', fontSize: '0.82rem', margin: '0 0 6px 0' }}>❓ Pre-Joining FAQs</h5>
+                    <ul style={{ margin: 0, paddingLeft: '14px', color: '#6B7280', fontSize: '0.78rem' }}>
+                      {(onboardingResult.faqs || []).map((faq: string, idx: number) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>{faq}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {savingOnboardingNotice && (
+                  <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid #22c55e', color: '#4ade80', padding: '8px 12px', borderRadius: '6px', fontSize: '0.8rem' }}>
+                    ✓ AI Onboarding Plan & Welcome Kit saved and sent to candidate successfully.
+                  </div>
+                )}
+
+                {/* Modal Footer Actions */}
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateOnboarding(onboardingModalApp)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px', borderColor: '#c084fc', color: '#c084fc' }}
+                  >
+                    🔄 Regenerate Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSavingOnboardingNotice(true);
+                      alert("Welcome package sent to candidate email!");
+                    }}
+                    className="btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px', backgroundColor: '#10b981', borderColor: '#10b981' }}
+                  >
+                    📧 Send Welcome Package to Candidate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOnboardingModalApp(null)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* ATS Resume Analysis Modal */}
+      {atsModalApp && (
+        <div style={styles.modalOverlay}>
+          <div className="glass-panel" style={{ ...styles.modalContent, maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={styles.modalHeader}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#111827', fontWeight: 800 }}>
+                  🎯 ATS Resume Analysis: {atsModalApp.candidateName}
+                </h3>
+                <span style={{ fontSize: '0.82rem', color: '#6B7280' }}>
+                  Target Role: {atsModalApp.jobTitle}
+                </span>
+              </div>
+              <button 
+                onClick={() => setAtsModalApp(null)}
+                style={{ background: 'none', border: 'none', color: '#6B7280', fontSize: '1.4rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {loadingAtsModal ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#2563EB' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>Evaluating candidate resume against job requirements...</div>
+              </div>
+            ) : atsAnalysisData ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px' }}>
+                {/* Score Header Card */}
+                <div style={{ background: '#F8FAFC', padding: '20px', borderRadius: '12px', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ 
+                      width: '80px', 
+                      height: '80px', 
+                      borderRadius: '50%', 
+                      border: `6px solid ${atsAnalysisData.atsScore >= 90 ? '#16A34A' : atsAnalysisData.atsScore >= 70 ? '#2563EB' : atsAnalysisData.atsScore >= 50 ? '#D97706' : '#DC2626'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.8rem',
+                      fontWeight: 900,
+                      color: '#111827',
+                      background: '#FFFFFF'
+                    }}>
+                      {atsAnalysisData.atsScore}
+                    </div>
+                    <div>
+                      <span className="badge" style={{ 
+                        fontSize: '0.8rem', 
+                        fontWeight: 700, 
+                        padding: '4px 10px',
+                        background: atsAnalysisData.atsScore >= 90 ? '#DCFCE7' : atsAnalysisData.atsScore >= 70 ? '#DBEAFE' : atsAnalysisData.atsScore >= 50 ? '#FEF3C7' : '#FEE2E2',
+                        color: atsAnalysisData.atsScore >= 90 ? '#15803D' : atsAnalysisData.atsScore >= 70 ? '#1E40AF' : atsAnalysisData.atsScore >= 50 ? '#B45309' : '#B91C1C'
+                      }}>
+                        {atsAnalysisData.recruiterRecommendation || 'Recommended'}
+                      </span>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', color: '#6B7280' }}>
+                        Keyword Match Density: <strong>{atsAnalysisData.keywordMatchPercentage}%</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleViewAtsAnalysis(atsModalApp)}
+                    className="btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                  >
+                    🔄 Re-Analyze Resume
+                  </button>
+                </div>
+
+                {/* Executive Summary */}
+                <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '10px', border: '1px solid #E5E7EB' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#111827', fontWeight: 700 }}>Executive Resume Summary</h4>
+                  <p style={{ margin: 0, fontSize: '0.88rem', color: '#374151', lineHeight: 1.5 }}>
+                    {atsAnalysisData.executiveSummary}
+                  </p>
+                </div>
+
+                {/* Skills Found vs Missing */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '10px', border: '1px solid #E5E7EB' }}>
+                    <h5 style={{ margin: '0 0 10px 0', fontSize: '0.88rem', color: '#16A34A', fontWeight: 700 }}>Detected Skills Found</h5>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {(atsAnalysisData.skillsDetected || []).map((s: string, idx: number) => (
+                        <span key={idx} style={{ background: '#DCFCE7', color: '#15803D', border: '1px solid #BBF7D0', padding: '4px 8px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 600 }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '10px', border: '1px solid #E5E7EB' }}>
+                    <h5 style={{ margin: '0 0 10px 0', fontSize: '0.88rem', color: '#DC2626', fontWeight: 700 }}>Missing Skills & Keywords</h5>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {(atsAnalysisData.missingSkills || []).map((s: string, idx: number) => (
+                        <span key={idx} style={{ background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '4px 8px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 600 }}>
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Improvement Suggestions */}
+                <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '10px', border: '1px solid #E5E7EB' }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '0.92rem', color: '#7C3AED', fontWeight: 700 }}>Recruiter Actionable Improvement Suggestions</h4>
+                  <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.85rem', color: '#374151', lineHeight: 1.5 }}>
+                    {(atsAnalysisData.improvementSuggestions || []).map((sug: string, idx: number) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>{sug}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #E5E7EB' }}>
+                  <button
+                    onClick={() => setAtsModalApp(null)}
+                    className="btn-primary"
+                    style={{ padding: '6px 18px', fontSize: '0.85rem' }}
+                  >
+                    Close Analysis
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -2431,7 +3520,7 @@ export const RecruiterDashboard: React.FC = () => {
               <div>
                 <span style={styles.modalLabel}>Submit Interview Evaluation:</span>
                 <h3 style={styles.modalTitle} className="text-gradient">{completingInterview.candidateName}</h3>
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Role: {completingInterview.jobTitle}</span>
+                <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Role: {completingInterview.jobTitle}</span>
               </div>
               <button style={styles.closeBtn} onClick={() => setCompletingInterview(null)}>
                 <X size={20} />
@@ -2445,7 +3534,7 @@ export const RecruiterDashboard: React.FC = () => {
                   className="glass-input"
                   value={resultStatus}
                   onChange={(e) => setResultStatus(e.target.value)}
-                  style={{ background: 'rgba(20,24,33,0.9)' }}
+                  style={{ background: '#FFFFFF' }}
                 >
                   <option value="Selected">Selected (Hire)</option>
                   <option value="Rejected">Rejected</option>
@@ -2508,7 +3597,7 @@ export const RecruiterDashboard: React.FC = () => {
               <div>
                 <span style={styles.modalLabel}>Schedule Interview For:</span>
                 <h3 style={styles.modalTitle} className="text-gradient">{schedulingApp.candidateName}</h3>
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Role: {schedulingApp.jobTitle}</span>
+                <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Role: {schedulingApp.jobTitle}</span>
               </div>
               <button style={styles.closeBtn} onClick={() => setSchedulingApp(null)}>
                 <X size={20} />
@@ -2533,7 +3622,7 @@ export const RecruiterDashboard: React.FC = () => {
                   className="glass-input"
                   value={intFormat}
                   onChange={(e) => setIntFormat(e.target.value)}
-                  style={{ background: 'rgba(20,24,33,0.9)' }}
+                  style={{ background: '#FFFFFF' }}
                 >
                   <option value="Online">Online / Video Call</option>
                   <option value="InPerson">In-Person Office Visit</option>
@@ -2695,22 +3784,31 @@ export const RecruiterDashboard: React.FC = () => {
       {/* AI Questions Viewer Modal */}
       {viewingQuestionsInt && (
         <div style={styles.modalOverlay}>
-          <div className="glass-panel" style={{ ...styles.modalContent, maxWidth: '640px' }}>
+          <div className="glass-panel" style={{ ...styles.modalContent, maxWidth: '680px' }}>
             <div style={styles.modalHeader}>
               <div>
                 <span style={styles.modalLabel}>AI Suggested Questions For:</span>
                 <h3 style={styles.modalTitle} className="text-gradient">{viewingQuestionsInt.candidateName}</h3>
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Role: {viewingQuestionsInt.jobTitle}</span>
+                <span style={{ fontSize: '0.85rem', color: '#6B7280' }}>Role: {viewingQuestionsInt.jobTitle}</span>
               </div>
               <button style={styles.closeBtn} onClick={() => setViewingQuestionsInt(null)}>
                 <X size={20} />
               </button>
             </div>
 
+            {savingQuestionsNotice && (
+              <div style={{ background: '#10b981', color: '#fff', padding: '10px 14px', borderRadius: '6px', marginBottom: '12px', fontSize: '0.85rem' }}>
+                ✓ Questions explicitly saved to interview record successfully!
+              </div>
+            )}
+
             <div style={styles.modalQuestionsList}>
-              {parseAiQuestions(viewingQuestionsInt.ai_Questions || '').map((q, idx) => (
+              {parseAiQuestions(viewingQuestionsInt.ai_Questions || '').map((q: any, idx: number) => (
                 <div key={idx} style={styles.qItem} className="glass-panel">
-                  <div style={styles.qNum}>Question {idx + 1}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <div style={styles.qNum}>Question {idx + 1}</div>
+                    <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>{q.category || 'AI Question'}</span>
+                  </div>
                   <p style={styles.qText}><Translate text={q.questionText} /></p>
                   <div style={styles.qRationaleBox}>
                     <strong>AI Rationale:</strong> <Translate text={q.rationale} />
@@ -2719,10 +3817,39 @@ export const RecruiterDashboard: React.FC = () => {
               ))}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <button className="btn-secondary" onClick={() => setViewingQuestionsInt(null)}>
-                Close Questions
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+              <button 
+                type="button"
+                className="btn-secondary" 
+                onClick={() => handleGenerateAiQuestions({ id: viewingQuestionsInt.applicationId } as any)}
+                disabled={loadingAiGenQuestions}
+                style={{ fontSize: '0.85rem' }}
+              >
+                {loadingAiGenQuestions ? 'Regenerating...' : '🔄 Regenerate Questions'}
               </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  type="button"
+                  className="btn-primary"
+                  style={{ backgroundColor: '#10b981', borderColor: '#10b981', fontSize: '0.85rem' }}
+                  onClick={async () => {
+                    if (!viewingQuestionsInt) return;
+                    const { error } = await apiRequest('/ai/save-questions', 'POST', {
+                      interviewId: viewingQuestionsInt.id,
+                      questionsJson: viewingQuestionsInt.ai_Questions
+                    });
+                    if (!error) {
+                      setSavingQuestionsNotice(true);
+                      setTimeout(() => setSavingQuestionsNotice(false), 3000);
+                    }
+                  }}
+                >
+                  💾 Save Questions
+                </button>
+                <button className="btn-secondary" style={{ fontSize: '0.85rem' }} onClick={() => setViewingQuestionsInt(null)}>
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2752,7 +3879,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: '1rem',
-    color: '#94a3b8',
+    color: '#6B7280',
   },
   tabContainer: {
     display: 'flex',
@@ -2800,7 +3927,7 @@ const styles: Record<string, React.CSSProperties> = {
   cardTitle: {
     fontSize: '1.25rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
   form: {
     display: 'flex',
@@ -2820,11 +3947,11 @@ const styles: Record<string, React.CSSProperties> = {
   formLabel: {
     fontSize: '0.85rem',
     fontWeight: '600',
-    color: '#94a3b8',
+    color: '#374151',
   },
   emptyMsg: {
     textAlign: 'center',
-    color: '#64748b',
+    color: '#6B7280',
     padding: '40px 0',
   },
   gridList: {
@@ -2845,7 +3972,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: '8px',
     fontSize: '0.85rem',
-    color: '#64748b',
+    color: '#6B7280',
   },
   tableWrapper: {
     width: '100%',
@@ -2857,51 +3984,53 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'left',
   },
   tableHeaderRow: {
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    borderBottom: '1px solid #E5E7EB',
+    background: '#F8FAFC',
   },
   th: {
     padding: '14px 16px',
-    color: '#64748b',
+    color: '#4B5563',
     fontWeight: '600',
     fontSize: '0.85rem',
     textTransform: 'uppercase',
   },
   td: {
     padding: '16px',
-    borderBottom: '1px solid rgba(255,255,255,0.04)',
+    borderBottom: '1px solid #F1F5F9',
     fontSize: '0.95rem',
+    color: '#111827',
   },
   tr: {
-    background: 'rgba(255,255,255,0.01)',
+    background: '#FFFFFF',
   },
   statusSelect: {
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.06)',
+    background: '#FFFFFF',
+    border: '1px solid #D1D5DB',
     borderRadius: '6px',
-    color: '#fff',
+    color: '#111827',
     padding: '6px 12px',
     cursor: 'pointer',
     fontFamily: "'Inter', sans-serif",
   },
   appDetailsBox: {
-    background: 'rgba(255,255,255,0.02)',
+    background: '#F8FAFC',
     padding: '20px',
     borderRadius: '12px',
     display: 'flex',
     gap: '24px',
-    border: '1px solid rgba(255,255,255,0.04)',
+    border: '1px solid #E5E7EB',
   },
   boxTitle: {
     fontSize: '0.85rem',
     fontWeight: '700',
-    color: '#64748b',
+    color: '#4B5563',
     textTransform: 'uppercase',
     marginBottom: '8px',
     letterSpacing: '0.5px',
   },
   boxText: {
     fontSize: '0.9rem',
-    color: '#94a3b8',
+    color: '#374151',
     lineHeight: '1.5',
     whiteSpace: 'pre-line',
   },
@@ -2917,10 +4046,11 @@ const styles: Record<string, React.CSSProperties> = {
   interviewTitle: {
     fontSize: '1.15rem',
     fontWeight: '700',
+    color: '#111827',
   },
   interviewSubtitle: {
     fontSize: '0.85rem',
-    color: '#64748b',
+    color: '#6B7280',
   },
   interviewMetaList: {
     display: 'flex',
@@ -2932,7 +4062,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     gap: '8px',
     fontSize: '0.85rem',
-    color: '#94a3b8',
+    color: '#4B5563',
   },
   modalOverlay: {
     position: 'fixed',
@@ -2940,8 +4070,8 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(5, 5, 8, 0.8)',
-    backdropFilter: 'blur(8px)',
+    background: 'rgba(15, 23, 42, 0.6)',
+    backdropFilter: 'blur(4px)',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
@@ -2955,6 +4085,8 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'relative',
     maxHeight: '90vh',
     overflowY: 'auto',
+    background: '#FFFFFF',
+    color: '#111827',
   },
   modalHeader: {
     display: 'flex',
@@ -2964,18 +4096,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modalLabel: {
     fontSize: '0.85rem',
-    color: '#64748b',
+    color: '#6B7280',
     display: 'block',
     marginBottom: '4px',
   },
   modalTitle: {
     fontSize: '1.5rem',
     fontWeight: '800',
+    color: '#111827',
   },
   closeBtn: {
     background: 'none',
     border: 'none',
-    color: '#64748b',
+    color: '#6B7280',
     cursor: 'pointer',
   },
   modalForm: {
@@ -2986,7 +4119,7 @@ const styles: Record<string, React.CSSProperties> = {
   modalFormLabel: {
     fontSize: '0.85rem',
     fontWeight: '600',
-    color: '#94a3b8',
+    color: '#374151',
   },
   modalActions: {
     display: 'flex',
@@ -3006,23 +4139,23 @@ const styles: Record<string, React.CSSProperties> = {
   qNum: {
     fontSize: '0.75rem',
     fontWeight: '800',
-    color: '#00f2fe',
+    color: '#2563EB',
     textTransform: 'uppercase',
     marginBottom: '8px',
   },
   qText: {
     fontSize: '0.95rem',
-    color: '#fff',
+    color: '#111827',
     fontWeight: '500',
     lineHeight: '1.5',
     marginBottom: '12px',
   },
   qRationaleBox: {
     fontSize: '0.85rem',
-    background: 'rgba(255,255,255,0.02)',
+    background: '#F8FAFC',
     padding: '10px 14px',
     borderRadius: '6px',
-    borderLeft: '2px solid #8b5cf6',
-    color: '#94a3b8',
+    borderLeft: '3px solid #2563EB',
+    color: '#4B5563',
   },
 };

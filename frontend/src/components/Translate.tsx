@@ -37,7 +37,7 @@ export const Translate: React.FC<TranslateProps> = ({ text, style }) => {
 
   if (loading) {
     return (
-      <span style={{ color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic', ...style }}>
+      <span style={{ color: '#6B7280', fontSize: '0.85rem', fontStyle: 'italic', ...style }}>
         Translating to {targetLang}...
       </span>
     );

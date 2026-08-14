@@ -226,6 +226,54 @@ namespace backend.Controllers
             }
         }
 
+        [HttpPost("profile/photo")]
+        [Authorize]
+        public async Task<IActionResult> UploadProfilePhoto(IFormFile file)
+        {
+            try
+            {
+                if (file == null || file.Length == 0)
+                {
+                    return BadRequest(new { message = "No photo file provided." });
+                }
+
+                // Validate 5 MB max size
+                if (file.Length > 5 * 1024 * 1024)
+                {
+                    return BadRequest(new { message = "Image size must be 5 MB or less." });
+                }
+
+                string extension = Path.GetExtension(file.FileName).ToLower();
+                string[] allowedExtensions = { ".jpg", ".jpeg", ".png", ".webp" };
+                if (!allowedExtensions.Contains(extension))
+                {
+                    return BadRequest(new { message = "Only JPG, JPEG, PNG, and WEBP formats are allowed." });
+                }
+
+                var userId = GetUserId();
+                var photosDir = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "profile-photos", userId.ToString());
+                if (!Directory.Exists(photosDir))
+                {
+                    Directory.CreateDirectory(photosDir);
+                }
+
+                var fileName = $"photo_{Guid.NewGuid()}{extension}";
+                var filePath = Path.Combine(photosDir, fileName);
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
+
+                var relativePath = $"/uploads/profile-photos/{userId}/{fileName}";
+                return Ok(new { message = "Profile photo validated and uploaded successfully.", photoUrl = relativePath, userId = userId });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error uploading profile photo.", error = ex.Message });
+            }
+        }
+
         [HttpPost("profile/resume")]
         [Authorize]
         public async Task<IActionResult> UploadResume(IFormFile file)
@@ -237,6 +285,12 @@ namespace backend.Controllers
                     return BadRequest(new { message = "No file uploaded." });
                 }
 
+                // Validate 5 MB file size limit
+                if (file.Length > 5 * 1024 * 1024)
+                {
+                    return BadRequest(new { message = "Resume file size must be 5 MB or less." });
+                }
+
                 var userId = GetUserId();
                 var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
                 if (profile == null)
@@ -245,9 +299,10 @@ namespace backend.Controllers
                 }
 
                 string extension = Path.GetExtension(file.FileName).ToLower();
-                if (extension != ".pdf" && extension != ".txt")
+                string[] allowedExtensions = { ".pdf", ".docx", ".txt" };
+                if (!allowedExtensions.Contains(extension))
                 {
-                    return BadRequest(new { message = "Only PDF and TXT files are supported." });
+                    return BadRequest(new { message = "Only PDF, DOCX, and TXT resume files are supported." });
                 }
 
                 // Create uploads directory
@@ -289,6 +344,31 @@ namespace backend.Controllers
                         return BadRequest(new { message = "Failed to parse PDF: " + ex.Message });
                     }
                 }
+                else if (extension == ".docx")
+                {
+                    try
+                    {
+                        using (var archive = System.IO.Compression.ZipFile.OpenRead(filePath))
+                        {
+                            var entry = archive.GetEntry("word/document.xml");
+                            if (entry != null)
+                            {
+                                using (var stream = entry.Open())
+                                using (var reader = new StreamReader(stream))
+                                {
+                                    string xml = reader.ReadToEnd();
+                                    var doc = System.Xml.Linq.XDocument.Parse(xml);
+                                    var textNodes = doc.Descendants().Where(e => e.Name.LocalName == "t");
+                                    extractedText = string.Join(" ", textNodes.Select(t => t.Value));
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        return BadRequest(new { message = "Failed to parse DOCX file: " + ex.Message });
+                    }
+                }
                 else
                 {
                     extractedText = await System.IO.File.ReadAllTextAsync(filePath);
@@ -299,29 +379,108 @@ namespace backend.Controllers
                     return BadRequest(new { message = "Could not extract text from the resume. Please ensure it is not scanned/image-only." });
                 }
 
-                // Call Gemini to parse
-                var aiResult = await _geminiService.ParseResumeAsync(extractedText);
+                // Call Gemini for detailed analysis
+                var analysis = await _geminiService.GenerateResumeAnalysisAsync(extractedText, "Software Engineer", "Full stack developer role", "React, C#, SQL, REST APIs");
 
-                // Update candidate profile
+                // Update candidate profile path
                 profile.ResumePath = fileName;
-                profile.Bio = aiResult.Bio;
-                profile.Skills = JsonSerializer.Serialize(aiResult.Skills);
-                profile.ExperienceYears = aiResult.ExperienceYears;
-                profile.AI_Summary = $"AI parsed on {DateTime.UtcNow:g}. Extracted {aiResult.Skills.Length} skills.";
-
+                profile.AI_Summary = $"Resume parsed on {DateTime.UtcNow:g}. ATS Score: {analysis.AtsScore}%.";
                 await _context.SaveChangesAsync();
 
                 return Ok(new
                 {
-                    message = "Resume processed successfully.",
-                    bio = profile.Bio,
-                    skills = aiResult.Skills,
-                    experienceYears = profile.ExperienceYears
+                    message = "Resume uploaded and analyzed successfully.",
+                    resumePath = fileName,
+                    analysis = analysis
                 });
             }
             catch (UnauthorizedAccessException)
             {
                 return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+        }
+
+        [HttpPost("profile/analyze-resume")]
+        [Authorize]
+        public async Task<IActionResult> AnalyzeSavedResume([FromQuery] int? jobId)
+        {
+            try
+            {
+                var userId = GetUserId();
+                var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+                if (profile == null || string.IsNullOrWhiteSpace(profile.ResumePath))
+                {
+                    return BadRequest(new { message = "No resume found. Please upload a resume first." });
+                }
+
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", profile.ResumePath);
+                if (!System.IO.File.Exists(filePath))
+                {
+                    return NotFound(new { message = "Uploaded resume file was not found on server." });
+                }
+
+                string extension = Path.GetExtension(filePath).ToLower();
+                string extractedText = "";
+
+                if (extension == ".pdf")
+                {
+                    using (var pdfStream = System.IO.File.OpenRead(filePath))
+                    using (var document = PdfDocument.Open(pdfStream))
+                    {
+                        var textBuilder = new StringBuilder();
+                        foreach (var page in document.GetPages()) textBuilder.AppendLine(page.Text);
+                        extractedText = textBuilder.ToString();
+                    }
+                }
+                else if (extension == ".docx")
+                {
+                    using (var archive = System.IO.Compression.ZipFile.OpenRead(filePath))
+                    {
+                        var entry = archive.GetEntry("word/document.xml");
+                        if (entry != null)
+                        {
+                            using (var stream = entry.Open())
+                            using (var reader = new StreamReader(stream))
+                            {
+                                string xml = reader.ReadToEnd();
+                                var doc = System.Xml.Linq.XDocument.Parse(xml);
+                                var textNodes = doc.Descendants().Where(e => e.Name.LocalName == "t");
+                                extractedText = string.Join(" ", textNodes.Select(t => t.Value));
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    extractedText = await System.IO.File.ReadAllTextAsync(filePath);
+                }
+
+                if (string.IsNullOrWhiteSpace(extractedText))
+                {
+                    return BadRequest(new { message = "Could not extract text from the stored resume file." });
+                }
+
+                string jobTitle = "Software Engineer";
+                string jobDesc = "Full stack software development role.";
+                string jobReqs = "React, C#, SQL, REST APIs.";
+
+                if (jobId.HasValue && jobId.Value > 0)
+                {
+                    var targetJob = await _context.Jobs.FirstOrDefaultAsync(j => j.Id == jobId.Value);
+                    if (targetJob != null)
+                    {
+                        jobTitle = targetJob.Title;
+                        jobDesc = targetJob.Description;
+                        jobReqs = targetJob.Requirements;
+                    }
+                }
+
+                var analysis = await _geminiService.GenerateResumeAnalysisAsync(extractedText, jobTitle, jobDesc, jobReqs);
+                return Ok(analysis);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Error analyzing resume: " + ex.Message });
             }
         }
 

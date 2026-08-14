@@ -22,14 +22,15 @@ export async function apiRequest<T = any>(
   isMultipart = false
 ): TaskResult<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  const isFormData = (typeof FormData !== 'undefined' && body instanceof FormData) || isMultipart;
   
   const options: RequestInit = {
     method,
-    headers: getHeaders(isMultipart),
+    headers: getHeaders(isFormData),
   };
   
   if (body) {
-    options.body = isMultipart ? body : JSON.stringify(body);
+    options.body = isFormData ? body : JSON.stringify(body);
   }
   
   try {
@@ -42,11 +43,21 @@ export async function apiRequest<T = any>(
       throw new Error('Session expired. Please login again.');
     }
     
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'Something went wrong');
+    const text = await response.text();
+    let data: any = null;
+    if (text && text.trim().length > 0) {
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = { message: text };
+      }
     }
-    return { data, error: null };
+    
+    if (!response.ok) {
+      const errorMsg = data && data.message ? data.message : `HTTP ${response.status} ${response.statusText}`;
+      throw new Error(errorMsg);
+    }
+    return { data: data as T, error: null };
   } catch (error: any) {
     return { data: null as any, error: error.message || 'Network error' };
   }

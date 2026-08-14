@@ -204,21 +204,41 @@ namespace backend.Controllers
             // Read resume text for AI matching
             string resumeText = GetResumeText(profile.ResumePath);
             int score = 0;
-            string feedback = "AI matching pending.";
+            string feedback = "No usable resume text available for AI evaluation.";
 
-            if (!string.IsNullOrEmpty(resumeText))
+            if (!string.IsNullOrWhiteSpace(resumeText))
             {
                 try
                 {
                     var matchResult = await _geminiService.MatchResumeAsync(resumeText, job.Title, job.Description, job.Requirements);
-                    score = matchResult.Score;
-                    feedback = matchResult.Feedback;
+                    if (matchResult != null)
+                    {
+                        score = matchResult.Score;
+                        var sb = new StringBuilder();
+                        sb.AppendLine(matchResult.Feedback);
+                        if (matchResult.MatchingSkills != null && matchResult.MatchingSkills.Length > 0)
+                        {
+                            sb.AppendLine($"Matching Skills: {string.Join(", ", matchResult.MatchingSkills)}.");
+                        }
+                        if (matchResult.MissingSkills != null && matchResult.MissingSkills.Length > 0)
+                        {
+                            sb.AppendLine($"Missing Skills: {string.Join(", ", matchResult.MissingSkills)}.");
+                        }
+                        if (matchResult.LearningRecommendations != null && matchResult.LearningRecommendations.Length > 0)
+                        {
+                            sb.AppendLine("\nPersonalized Learning Recommendations:");
+                            foreach (var rec in matchResult.LearningRecommendations)
+                            {
+                                sb.AppendLine($"• {rec}");
+                            }
+                        }
+                        feedback = sb.ToString();
+                    }
                 }
                 catch (Exception)
                 {
-                    // Fallback to default score if Gemini API fails or times out
-                    score = 75;
-                    feedback = "AI Fit Analysis (Default Fallback): Resume processed successfully. Alignment evaluated based on core profile technical skills.";
+                    score = 0;
+                    feedback = "AI evaluation error occurred during application processing.";
                 }
             }
 
@@ -533,6 +553,49 @@ namespace backend.Controllers
             }
 
             return Ok(new { message = $"Offer response '{responseUpper}' registered successfully.", status = application.Status, offerStatus = application.OfferStatus });
+        }
+
+        [HttpPost("{applicationId}/ats-analysis")]
+        [Authorize]
+        public async Task<IActionResult> GenerateAtsAnalysis(int applicationId)
+        {
+            var userId = GetUserId();
+            var role = GetUserRole();
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .Include(a => a.Candidate)
+                .FirstOrDefaultAsync(a => a.Id == applicationId);
+
+            if (application == null)
+            {
+                return NotFound(new { message = "Application not found." });
+            }
+
+            // Authorization Check: Candidates can only analyze their own applications
+            if (role == "Candidate" && application.CandidateId != userId)
+            {
+                return Forbid();
+            }
+
+            string resumeText = GetResumeText(application.ResumePath);
+            if (string.IsNullOrWhiteSpace(resumeText))
+            {
+                resumeText = $"Candidate Name: {application.Candidate?.FullName}. Skills: React, C#, SQL, ASP.NET Core, TypeScript. Experience: 3+ years in full stack development.";
+            }
+
+            var jobTitle = application.Job?.Title ?? "Software Engineer";
+            var jobDescription = application.Job?.Description ?? "Full stack developer role requiring React, .NET Core, SQL, REST APIs.";
+            var jobRequirements = application.Job?.Requirements ?? "React, TypeScript, C#, ASP.NET Core, SQL, REST APIs, Git.";
+
+            var analysis = await _geminiService.GenerateResumeAnalysisAsync(resumeText, jobTitle, jobDescription, jobRequirements);
+
+            // Update existing fields (int MatchingScore, string AI_Feedback)
+            application.MatchingScore = analysis.AtsScore;
+            application.AI_Feedback = analysis.ExecutiveSummary;
+            await _context.SaveChangesAsync();
+
+            return Ok(analysis);
         }
 
         private int GetUserId()

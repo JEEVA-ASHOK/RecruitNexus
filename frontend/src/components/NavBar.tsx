@@ -1,55 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Palette, X, Clock, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Clock, ChevronDown, Settings, Check } from 'lucide-react';
 import { t } from '../i18n';
 import { apiRequest } from '../api';
 import { NotificationCenter } from './NotificationCenter';
 
 export const NavBar: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const userJson = localStorage.getItem('user');
   const user = userJson ? JSON.parse(userJson) : null;
   const [lang, setLang] = useState(localStorage.getItem('portalLang') || 'English');
-  const [showRgbCustomizer, setShowRgbCustomizer] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  const [themeMode, setThemeMode] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'light' || saved === 'dark') return saved;
-    return 'dark';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', themeMode);
-    localStorage.setItem('theme', themeMode);
-
-    if (themeMode === 'light') {
-      document.documentElement.style.setProperty('--bg-primary', '#F8FAFC');
-      document.documentElement.style.setProperty('--bg-secondary', '#F1F5F9');
-      document.documentElement.style.setProperty('--glass-bg', 'rgba(255, 255, 255, 0.75)');
-      document.documentElement.style.setProperty('--glass-border', 'rgba(0, 0, 0, 0.08)');
-      document.documentElement.style.setProperty('--text-primary', '#0F172A');
-      document.documentElement.style.setProperty('--text-secondary', '#475569');
-      document.documentElement.style.setProperty('--text-muted', '#64748b');
-      document.body.style.backgroundColor = '#F8FAFC';
-    } else {
-      document.documentElement.style.setProperty('--bg-primary', '#0F172A');
-      document.documentElement.style.setProperty('--bg-secondary', '#1E293B');
-      document.documentElement.style.setProperty('--glass-bg', 'rgba(30, 41, 59, 0.65)');
-      document.documentElement.style.setProperty('--glass-border', 'rgba(255, 255, 255, 0.08)');
-      document.documentElement.style.setProperty('--text-primary', '#F8FAFC');
-      document.documentElement.style.setProperty('--text-secondary', '#94a3b8');
-      document.documentElement.style.setProperty('--text-muted', '#64748b');
-      document.body.style.backgroundColor = '#0F172A';
-    }
-  }, [themeMode]);
-
-  const toggleThemeMode = () => {
-    setThemeMode(prev => prev === 'dark' ? 'light' : 'dark');
-  };
 
   const [navApplications, setNavApplications] = useState<any[]>([]);
   const [navInterviews, setNavInterviews] = useState<any[]>([]);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showLangSubmenu, setShowLangSubmenu] = useState(false);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const languagesList = [
+    { name: 'English', label: 'English' },
+    { name: 'Tamil', label: 'Tamil (தமிழ்)' },
+    { name: 'Hindi', label: 'Hindi (हिन्दी)' },
+    { name: 'Kannada', label: 'Kannada (ಕನ್ನಡ)' },
+    { name: 'Malayalam', label: 'Malayalam (മലയാളം)' },
+    { name: 'Japanese', label: 'Japanese (日本語)' }
+  ];
 
   const reloadNavData = () => {
     if (user) {
@@ -75,10 +54,44 @@ export const NavBar: React.FC = () => {
   }, [userJson]);
 
   useEffect(() => {
+    const loadPhoto = () => {
+      const uJson = localStorage.getItem('user');
+      const uObj = uJson ? JSON.parse(uJson) : null;
+      const uId = uObj?.id || uObj?.userId;
+
+      // Purge legacy un-scoped global photo keys
+      localStorage.removeItem('candidatePhoto');
+      localStorage.removeItem('profilePhoto');
+      localStorage.removeItem('avatar');
+
+      if (uId) {
+        const stored = localStorage.getItem(`profilePhoto_${uId}`);
+        setUserPhoto(stored || null);
+      } else {
+        setUserPhoto(null);
+      }
+    };
+    loadPhoto();
+    window.addEventListener('profile-photo-updated', loadPhoto);
+    return () => window.removeEventListener('profile-photo-updated', loadPhoto);
+  }, [userJson]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+        setShowLangSubmenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const formatDateTime = (date: Date) => {
@@ -94,362 +107,249 @@ export const NavBar: React.FC = () => {
     return date.toLocaleString('en-US', options);
   };
 
-  // RGB custom colors state
-  const [neonPrimary, setNeonPrimary] = useState(() => {
-    return localStorage.getItem('rgbPrimary') || '#00f2fe';
-  });
-  const [neonSecondary, setNeonSecondary] = useState(() => {
-    return localStorage.getItem('rgbSecondary') || '#8b5cf6';
-  });
-  const [bgThemeColor, setBgThemeColor] = useState(() => {
-    return localStorage.getItem('bgThemeColor') || '#0a0f1d';
-  });
-  const [enableCityBgs, setEnableCityBgs] = useState(() => {
-    return localStorage.getItem('enableCityBgs') !== 'false';
-  });
-
-  const [rgbActive, setRgbActive] = useState(() => {
-    const saved = localStorage.getItem('rgbMode') === 'true';
-    if (saved) {
-      document.body.classList.add('rgb-glow-active');
-    }
-    return saved;
-  });
-
-  const applyContrastTextColor = (hexcolor: string) => {
-    if (!hexcolor || !hexcolor.startsWith('#')) return;
-    const r = parseInt(hexcolor.slice(1, 3), 16);
-    const g = parseInt(hexcolor.slice(3, 5), 16);
-    const b = parseInt(hexcolor.slice(5, 7), 16);
-    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-    
-    const isLight = yiq >= 128;
-    
-    // Core text and glass custom properties
-    const textPrimary = isLight ? '#0f172a' : '#f8fafc';
-    const textSecondary = isLight ? '#334155' : '#94a3b8';
-    const textMuted = isLight ? '#64748b' : '#64748b';
-    const glassBg = isLight ? 'rgba(255, 255, 255, 0.45)' : 'rgba(18, 20, 32, 0.65)';
-    const glassBorder = isLight ? 'rgba(15, 23, 42, 0.12)' : 'rgba(255, 255, 255, 0.06)';
-    const bgSecondary = isLight ? '#f1f5f9' : '#121420';
-
-    document.documentElement.style.setProperty('--text-primary', textPrimary);
-    document.documentElement.style.setProperty('--text-secondary', textSecondary);
-    document.documentElement.style.setProperty('--text-muted', textMuted);
-    document.documentElement.style.setProperty('--glass-bg', glassBg);
-    document.documentElement.style.setProperty('--glass-border', glassBorder);
-    document.documentElement.style.setProperty('--bg-secondary', bgSecondary);
-  };
-
-  useEffect(() => {
-    // Apply saved colors on load
-    const p = localStorage.getItem('rgbPrimary') || '#00f2fe';
-    const s = localStorage.getItem('rgbSecondary') || '#8b5cf6';
-    const bg = localStorage.getItem('bgThemeColor') || '#0a0f1d';
-    document.documentElement.style.setProperty('--accent-cyan', p);
-    document.documentElement.style.setProperty('--accent-purple', s);
-    document.documentElement.style.setProperty('--bg-primary', bg);
-    document.body.style.backgroundColor = bg;
-    applyContrastTextColor(bg);
-  }, []);
-
-  const toggleRgbMode = () => {
-    const nextVal = !rgbActive;
-    localStorage.setItem('rgbMode', String(nextVal));
-    setRgbActive(nextVal);
-    if (nextVal) {
-      document.body.classList.add('rgb-glow-active');
-    } else {
-      document.body.classList.remove('rgb-glow-active');
-    }
-  };
-
-  const handleColorChange = (type: 'primary' | 'secondary', value: string) => {
-    if (type === 'primary') {
-      setNeonPrimary(value);
-      localStorage.setItem('rgbPrimary', value);
-      document.documentElement.style.setProperty('--accent-cyan', value);
-    } else {
-      setNeonSecondary(value);
-      localStorage.setItem('rgbSecondary', value);
-      document.documentElement.style.setProperty('--accent-purple', value);
-    }
-  };
-
-  const handleBgColorChange = (value: string) => {
-    setBgThemeColor(value);
-    localStorage.setItem('bgThemeColor', value);
-    document.documentElement.style.setProperty('--bg-primary', value);
-    document.body.style.backgroundColor = value;
-    applyContrastTextColor(value);
-    window.dispatchEvent(new Event('theme-changed'));
-  };
-
-  const toggleCityBgs = () => {
-    const nextVal = !enableCityBgs;
-    setEnableCityBgs(nextVal);
-    localStorage.setItem('enableCityBgs', String(nextVal));
-    window.dispatchEvent(new Event('theme-changed'));
-  };
-
-  const applyThemePreset = (p: string, s: string) => {
-    setNeonPrimary(p);
-    setNeonSecondary(s);
-    localStorage.setItem('rgbPrimary', p);
-    localStorage.setItem('rgbSecondary', s);
-    document.documentElement.style.setProperty('--accent-cyan', p);
-    document.documentElement.style.setProperty('--accent-purple', s);
-  };
-
-  const handleLangChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = e.target.value;
-    localStorage.setItem('portalLang', selected);
-    setLang(selected);
-    window.dispatchEvent(new Event('language-changed'));
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    setUserPhoto(null);
+    window.dispatchEvent(new Event('profile-photo-updated'));
+    setShowProfileMenu(false);
     navigate('/login');
   };
 
+  const handleSelectLang = (selected: string) => {
+    setLang(selected);
+    localStorage.setItem('portalLang', selected);
+    window.dispatchEvent(new Event('language-changed'));
+    setShowLangSubmenu(false);
+  };
+
+  const isActive = (path: string) => {
+    if (path === '/' && (location.pathname === '/' || location.pathname === '')) return true;
+    return location.pathname === path;
+  };
+
   return (
-    <nav style={styles.nav} className="glass-panel">
+    <nav style={styles.nav}>
       <div style={styles.container}>
-        
         {/* LOGO CONTAINER */}
         <Link to="/" style={styles.logoContainer}>
-          <Briefcase size={22} color="#8b5cf6" style={{ filter: 'drop-shadow(0 0 6px rgba(139, 92, 246, 0.6))' }} />
+          <div style={styles.logoBadge}>
+            <Briefcase size={22} color="#FFFFFF" />
+          </div>
           <span style={styles.logoText}>
-            Recruit<span style={{ color: '#00f2fe', filter: 'drop-shadow(0 0 6px rgba(0,242,254,0.5))' }}>Nexus</span>
+            Recruit<span style={{ color: '#2563EB', fontWeight: 800 }}>Nexus</span>
           </span>
         </Link>
 
-        {/* NAVIGATION LINKS & CONFIGURATIONS */}
+        {/* NAVIGATION LINKS */}
         <div style={styles.navLinks}>
-          <Link to="/" style={{ ...styles.link, marginRight: '4px' }}>
+          <Link 
+            to="/" 
+            style={{ 
+              ...styles.link, 
+              color: isActive('/') ? '#2563EB' : '#4B5563',
+              fontWeight: isActive('/') ? 700 : 500,
+              borderBottom: isActive('/') ? '2px solid #2563EB' : '2px solid transparent',
+            }}
+          >
             Home
           </Link>
           
-          {/* Unique dynamic date-time display widget next to Home */}
-          <div style={styles.dateTimeBadge}>
-            <Clock size={11} color="var(--accent-cyan)" style={{ animation: 'pulse 2s infinite' }} />
-            <span>{formatDateTime(currentTime)}</span>
-          </div>
-          
-          <Link to="/" style={styles.link}>
+          <Link 
+            to="/jobs" 
+            style={{ 
+              ...styles.link, 
+              color: isActive('/jobs') ? '#2563EB' : '#4B5563',
+              fontWeight: isActive('/jobs') ? 700 : 500,
+              borderBottom: isActive('/jobs') ? '2px solid #2563EB' : '2px solid transparent',
+            }}
+          >
             {t('find_jobs')}
           </Link>
 
-          <Link to="/companies" style={styles.link}>Companies</Link>
-          <Link to="/ai-tools" style={styles.link}>AI Tools</Link>
-          <Link to="/resources" style={styles.link}>Resources</Link>
-          <Link to="/pricing" style={styles.link}>Pricing</Link>
-
-          {/* RGB GLOW NEON CUSTOMIZER */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => {
-                toggleRgbMode();
-                if (!rgbActive) {
-                  setShowRgbCustomizer(true);
-                }
-              }}
-              onDoubleClick={() => setShowRgbCustomizer(!showRgbCustomizer)}
-              style={{
-                ...styles.rgbToggleBtn,
-                background: rgbActive ? 'rgba(255, 0, 127, 0.08)' : 'rgba(255,255,255,0.02)',
-                borderColor: rgbActive ? 'rgba(255, 0, 127, 0.25)' : 'rgba(255,255,255,0.05)',
-                color: rgbActive ? '#ff007f' : '#64748b',
-              }}
-              title="Single-click to toggle, Double-click to customize colors"
-            >
-              <Palette size={14} style={{ filter: rgbActive ? 'drop-shadow(0 0 3px #ff007f)' : 'none' }} />
-              <span>{rgbActive ? t('rgb_active') : t('rgb_glow')}</span>
-            </button>
-
-            {/* Customizer Dropdown Card */}
-            {showRgbCustomizer && (
-              <div style={styles.rgbCustomizerCard} className="glass-panel">
-                <div style={styles.customizerHeader}>
-                  <strong style={{ fontSize: '0.85rem', color: '#fff' }}>RGB Accent Customizer</strong>
-                  <button 
-                    onClick={() => setShowRgbCustomizer(false)} 
-                    style={styles.closeCustomizerBtn}
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-                
-                <div style={styles.customizerGroup}>
-                  <label style={styles.customizerLabel}>Primary Glow Accent</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="color"
-                      value={neonPrimary}
-                      onChange={(e) => handleColorChange('primary', e.target.value)}
-                      style={styles.colorInput}
-                    />
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{neonPrimary}</span>
-                  </div>
-                </div>
-
-                <div style={styles.customizerGroup}>
-                  <label style={styles.customizerLabel}>Secondary Glow Accent</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="color"
-                      value={neonSecondary}
-                      onChange={(e) => handleColorChange('secondary', e.target.value)}
-                      style={styles.colorInput}
-                    />
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{neonSecondary}</span>
-                  </div>
-                </div>
-
-                <div style={styles.customizerGroup}>
-                  <label style={styles.customizerLabel}>Page Background Color</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="color"
-                      value={bgThemeColor}
-                      onChange={(e) => handleBgColorChange(e.target.value)}
-                      style={styles.colorInput}
-                    />
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{bgThemeColor}</span>
-                  </div>
-                </div>
-
-                <div style={{ ...styles.customizerGroup, flexDirection: 'row', alignItems: 'center', gap: '8px', marginTop: '6px', marginBottom: '10px' }}>
-                  <input
-                    type="checkbox"
-                    id="enable-city-bgs"
-                    checked={enableCityBgs}
-                    onChange={toggleCityBgs}
-                    style={{ cursor: 'pointer' }}
-                  />
-                  <label htmlFor="enable-city-bgs" style={{ ...styles.customizerLabel, cursor: 'pointer', marginBottom: 0, textTransform: 'none', fontSize: '0.78rem' }}>
-                    Show City Watermarks
-                  </label>
-                </div>
-
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px', marginTop: '4px' }}>
-                  <label style={{ ...styles.customizerLabel, marginBottom: '6px' }}>Theme Presets</label>
-                  <div style={styles.presetThemesGrid}>
-                    <button 
-                      onClick={() => applyThemePreset('#00f2fe', '#8b5cf6')} 
-                      style={styles.presetBtn}
-                    >
-                      Cyber
-                    </button>
-                    <button 
-                      onClick={() => applyThemePreset('#ff007f', '#fbbf24')} 
-                      style={styles.presetBtn}
-                    >
-                      Sunset
-                    </button>
-                    <button 
-                      onClick={() => applyThemePreset('#39ff14', '#00ff00')} 
-                      style={styles.presetBtn}
-                    >
-                      Neon
-                    </button>
-                    <button 
-                      onClick={() => applyThemePreset('#f43f5e', '#ec4899')} 
-                      style={styles.presetBtn}
-                    >
-                      Rose
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* LANGUAGE SELECTOR */}
-          <div style={styles.langSelectorWrapper}>
-            <Globe size={14} color="#64748b" style={{ marginRight: '4px' }} />
-            <select
-              value={lang}
-              onChange={handleLangChange}
-              style={styles.langSelect}
-            >
-              <option value="English">English</option>
-              <option value="Tamil">Tamil (தமிழ்)</option>
-              <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
-              <option value="Malayalam">Malayalam (മലയാളം)</option>
-              <option value="Hindi">Hindi (हिन्दी)</option>
-              <option value="Japanese">Japanese (日本語)</option>
-            </select>
-          </div>
-
-          {/* THEME MODE TOGGLE BUTTON */}
-          <button
-            onClick={toggleThemeMode}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'var(--glass-bg-override, rgba(255,255,255,0.03))',
-              border: '1px solid var(--glass-border)',
-              padding: '4px 10px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: 'var(--text-primary)',
-              fontSize: '0.78rem',
-              fontWeight: '600',
-              fontFamily: "'Inter', sans-serif",
-              transition: 'all 0.2s ease',
+          <Link 
+            to="/companies" 
+            style={{ 
+              ...styles.link, 
+              color: isActive('/companies') ? '#2563EB' : '#4B5563',
+              fontWeight: isActive('/companies') ? 700 : 500,
+              borderBottom: isActive('/companies') ? '2px solid #2563EB' : '2px solid transparent',
             }}
-            title={`Switch to ${themeMode === 'dark' ? 'Light' : 'Dark'} Mode`}
           >
-            {themeMode === 'dark' ? (
-              <>
-                <Moon size={14} color="#00f2fe" />
-                <span>🌙 Dark</span>
-              </>
-            ) : (
-              <>
-                <Sun size={14} color="#f59e0b" />
-                <span>☀️ Light</span>
-              </>
-            )}
-          </button>
-          
-          {/* USER PROFILE SECTION */}
+            Companies
+          </Link>
+
+          <Link 
+            to="/ai-tools" 
+            style={{ 
+              ...styles.link, 
+              color: isActive('/ai-tools') ? '#2563EB' : '#4B5563',
+              fontWeight: isActive('/ai-tools') ? 700 : 500,
+              borderBottom: isActive('/ai-tools') ? '2px solid #2563EB' : '2px solid transparent',
+            }}
+          >
+            AI Tools
+          </Link>
+
+          <Link 
+            to="/resources" 
+            style={{ 
+              ...styles.link, 
+              color: isActive('/resources') ? '#2563EB' : '#4B5563',
+              fontWeight: isActive('/resources') ? 700 : 500,
+              borderBottom: isActive('/resources') ? '2px solid #2563EB' : '2px solid transparent',
+            }}
+          >
+            Resources
+          </Link>
+
+          <Link 
+            to="/pricing" 
+            style={{ 
+              ...styles.link, 
+              color: isActive('/pricing') ? '#2563EB' : '#4B5563',
+              fontWeight: isActive('/pricing') ? 700 : 500,
+              borderBottom: isActive('/pricing') ? '2px solid #2563EB' : '2px solid transparent',
+            }}
+          >
+            Pricing
+          </Link>
+
+          <div style={styles.dateTimeBadge}>
+            <Clock size={12} color="#6B7280" />
+            <span>{formatDateTime(currentTime)}</span>
+          </div>
+
+          {/* USER PROFILE SECTION WITH INTEGRATED LANGUAGE SUBMENU */}
           {user ? (
-            <>
-              <Link to="/dashboard" style={styles.link}>
-                <LayoutDashboard size={14} />
-                <span>{t('dashboard')}</span>
-              </Link>
-              <div style={styles.userSection}>
-                <NotificationCenter 
-                  applications={navApplications} 
-                  interviews={navInterviews} 
-                  isRecruiter={user.role === 'Recruiter' || user.role === 'Admin'} 
-                  onActionComplete={() => window.dispatchEvent(new Event('interview-action-completed'))}
-                />
-                <div style={styles.profileBadge}>
-                  <UserIcon size={12} color="#00f2fe" />
+            <div style={styles.userSection} ref={menuRef}>
+              <NotificationCenter 
+                applications={navApplications} 
+                interviews={navInterviews} 
+                isRecruiter={user.role === 'Recruiter' || user.role === 'Admin'} 
+                onActionComplete={() => window.dispatchEvent(new Event('interview-action-completed'))}
+              />
+
+              <div style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => {
+                    setShowProfileMenu(!showProfileMenu);
+                    setShowLangSubmenu(false);
+                  }}
+                  style={styles.profileBadgeBtn}
+                >
+                  {userPhoto ? (
+                    <img src={userPhoto} alt="Profile" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <UserIcon size={14} color="#2563EB" />
+                  )}
                   <span style={styles.profileName} title={user.fullName}>{user.fullName}</span>
-                  <span className="badge badge-purple" style={{ fontSize: '0.6rem', padding: '1px 4px' }}>
+                  <span className="badge badge-purple" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
                     {user.role}
                   </span>
-                </div>
-                <button onClick={handleLogout} style={styles.logoutBtn} title="Sign Out">
-                  <LogOut size={16} />
+                  <ChevronDown size={14} color="#6B7280" />
                 </button>
+
+                {/* PROFILE DROPDOWN CARD */}
+                {showProfileMenu && (
+                  <div style={styles.dropdownMenu}>
+                    <div style={styles.menuHeader}>
+                      <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem' }}>{user.fullName}</span>
+                      <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>{user.email}</span>
+                    </div>
+                    
+                    <div style={styles.menuDivider} />
+
+                    <Link 
+                      to="/dashboard" 
+                      onClick={() => setShowProfileMenu(false)}
+                      style={styles.menuItem}
+                    >
+                      <LayoutDashboard size={16} color="#4B5563" />
+                      <span>{t('dashboard')}</span>
+                    </Link>
+
+                    {/* LANGUAGE SUBMENU TRIGGER */}
+                    <div 
+                      onClick={() => setShowLangSubmenu(!showLangSubmenu)}
+                      style={styles.menuItem}
+                    >
+                      <Globe size={16} color="#4B5563" />
+                      <span>Language ({lang})</span>
+                      <ChevronDown size={14} color="#6B7280" style={{ marginLeft: 'auto', transform: showLangSubmenu ? 'rotate(180deg)' : 'none' }} />
+                    </div>
+
+                    {/* LANGUAGE EXPANDABLE SUBMENU OPTIONS */}
+                    {showLangSubmenu && (
+                      <div style={styles.langSubmenuBox}>
+                        {languagesList.map((l) => (
+                          <button
+                            key={l.name}
+                            onClick={() => handleSelectLang(l.name)}
+                            style={{
+                              ...styles.langOptionBtn,
+                              background: lang === l.name ? '#EFF6FF' : 'none',
+                              color: lang === l.name ? '#2563EB' : '#374151',
+                              fontWeight: lang === l.name ? 700 : 500,
+                            }}
+                          >
+                            <span>{l.label}</span>
+                            {lang === l.name && <Check size={14} color="#2563EB" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={styles.menuDivider} />
+
+                    <button onClick={handleLogout} style={{ ...styles.menuItem, color: '#DC2626' }}>
+                      <LogOut size={16} color="#DC2626" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            </>
+            </div>
           ) : (
-            <div style={styles.authButtons}>
-              <Link to="/login" style={{ ...styles.link, padding: '6px 12px' }}>
+            <div style={styles.authButtons} ref={menuRef}>
+              {/* GUEST COMPACT LANGUAGE TRIGGER */}
+              <div style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => setShowLangSubmenu(!showLangSubmenu)}
+                  style={styles.guestLangBtn}
+                  title="Select Language"
+                >
+                  <Globe size={16} color="#4B5563" />
+                  <span>{lang}</span>
+                  <ChevronDown size={12} color="#6B7280" />
+                </button>
+
+                {showLangSubmenu && (
+                  <div style={{ ...styles.dropdownMenu, right: 0, width: '180px' }}>
+                    {languagesList.map((l) => (
+                      <button
+                        key={l.name}
+                        onClick={() => handleSelectLang(l.name)}
+                        style={{
+                          ...styles.langOptionBtn,
+                          background: lang === l.name ? '#EFF6FF' : 'none',
+                          color: lang === l.name ? '#2563EB' : '#374151',
+                          fontWeight: lang === l.name ? 700 : 500,
+                        }}
+                      >
+                        <span>{l.label}</span>
+                        {lang === l.name && <Check size={14} color="#2563EB" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Link to="/login" style={styles.loginLink}>
                 {t('sign_in')}
               </Link>
-              <Link to="/register" className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.8rem' }}>
-                {t('sign_up') || 'Get Started'}
+              <Link to="/register" className="btn-primary" style={styles.getStartedBtn}>
+                {t('get_started')}
               </Link>
             </div>
           )}
@@ -459,210 +359,210 @@ export const NavBar: React.FC = () => {
   );
 };
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: { [key: string]: React.CSSProperties } = {
   nav: {
     position: 'sticky',
-    top: 12,
-    left: 16,
-    right: 16,
-    margin: '12px auto',
-    width: 'calc(100% - 32px)',
-    maxWidth: '1300px',
-    padding: '8px 18px',
-    zIndex: 1000,
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: '12px',
+    top: 0,
+    zIndex: 100,
+    background: '#FFFFFF',
+    borderBottom: '1px solid #E5E7EB',
+    boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.04)',
+    height: '80px',
   },
   container: {
+    maxWidth: '1440px',
+    margin: '0 auto',
+    padding: '0 32px',
+    height: '100%',
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   logoContainer: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '12px',
     textDecoration: 'none',
-    marginRight: '12px', // Add separation between logo and nav links
+  },
+  logoBadge: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '10px',
+    background: '#2563EB',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 2px 4px rgba(37, 99, 235, 0.25)',
   },
   logoText: {
-    fontSize: '1.25rem',
+    fontSize: '1.35rem',
     fontWeight: '800',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#0F172A',
     letterSpacing: '-0.5px',
   },
   navLinks: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '20px',
+    height: '100%',
   },
   link: {
-    color: 'var(--text-secondary, #94a3b8)',
+    color: '#4B5563',
     textDecoration: 'none',
-    fontWeight: '500',
-    fontSize: '0.85rem',
+    fontWeight: 500,
+    fontSize: '0.92rem',
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
-    transition: 'color 0.2s',
+    gap: '6px',
+    height: '100%',
+    padding: '0 4px',
+    transition: 'all 0.2s ease-in-out',
+  },
+  loginLink: {
+    color: '#374151',
+    textDecoration: 'none',
+    fontWeight: 600,
+    fontSize: '0.92rem',
+    padding: '10px 16px',
+    borderRadius: '8px',
+    transition: 'background 0.2s',
+  },
+  getStartedBtn: {
+    padding: '10px 20px',
+    fontSize: '0.92rem',
+    fontWeight: 600,
+    textDecoration: 'none',
+    height: '44px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userSection: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    borderLeft: '1px solid var(--glass-border)',
-    paddingLeft: '8px',
+    gap: '12px',
+    borderLeft: '1px solid #E5E7EB',
+    paddingLeft: '16px',
   },
-  profileBadge: {
+  profileBadgeBtn: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
-    background: 'var(--glass-bg-override, rgba(255,255,255,0.02))',
-    padding: '4px 8px',
-    borderRadius: '6px',
-    fontSize: '0.8rem',
-    border: '1px solid var(--glass-border)',
-    maxWidth: '170px',
+    gap: '8px',
+    background: '#F8FAFC',
+    padding: '8px 12px',
+    borderRadius: '10px',
+    fontSize: '0.85rem',
+    border: '1px solid #E5E7EB',
+    cursor: 'pointer',
+    outline: 'none',
   },
   profileName: {
-    maxWidth: '70px',
+    maxWidth: '100px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    color: 'var(--text-primary, #cbd5e1)',
+    color: '#111827',
+    fontWeight: 600,
   },
   logoutBtn: {
     background: 'none',
     border: 'none',
-    color: 'var(--text-muted, #64748b)',
+    color: '#6B7280',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: '6px',
+    borderRadius: '6px',
     transition: 'color 0.2s',
   },
   authButtons: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '12px',
   },
-  langSelectorWrapper: {
+  guestLangBtn: {
     display: 'flex',
     alignItems: 'center',
-    background: 'var(--glass-bg-override, rgba(255,255,255,0.02))',
-    border: '1px solid var(--glass-border)',
-    padding: '4px 8px',
-    borderRadius: '6px',
-  },
-  langSelect: {
-    background: 'none',
-    border: 'none',
-    color: 'var(--text-secondary, #94a3b8)',
-    cursor: 'pointer',
-    fontFamily: "'Inter', sans-serif",
-    fontSize: '0.78rem',
-    fontWeight: '500',
-    outline: 'none',
-  },
-  rgbToggleBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    border: '1px solid',
-    padding: '4px 8px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.78rem',
-    fontWeight: '500',
-    transition: 'all 0.3s ease',
-    fontFamily: "'Inter', sans-serif",
-  },
-  rgbCustomizerCard: {
-    position: 'absolute',
-    top: '100%',
-    right: 0,
-    marginTop: '8px',
-    width: '210px',
-    padding: '12px',
-    borderRadius: '12px',
-    zIndex: 9999,
-    background: 'var(--bg-secondary, rgba(15, 23, 42, 0.95))',
-    border: '1px solid var(--glass-border)',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-    textAlign: 'left',
-  },
-  customizerHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '10px',
-    borderBottom: '1px solid var(--glass-border)',
-    paddingBottom: '6px',
-  },
-  closeCustomizerBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#64748b',
-    cursor: 'pointer',
-    padding: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  customizerGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    marginBottom: '8px',
-  },
-  customizerLabel: {
-    fontSize: '0.7rem',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    fontWeight: '700',
-    letterSpacing: '0.3px',
-  },
-  colorInput: {
-    border: 'none',
-    background: 'none',
-    width: '28px',
-    height: '24px',
-    cursor: 'pointer',
-    padding: 0,
-  },
-  presetThemesGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
     gap: '6px',
-  },
-  presetBtn: {
-    padding: '4px 6px',
-    fontSize: '0.75rem',
-    borderRadius: '4px',
-    background: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.06)',
-    color: '#94a3b8',
+    background: '#F8FAFC',
+    border: '1px solid #E5E7EB',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+    color: '#374151',
     cursor: 'pointer',
-    fontFamily: "'Inter', sans-serif",
-    transition: 'all 0.2s',
-    textAlign: 'center',
   },
   dateTimeBadge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
-    background: 'var(--glass-bg-override, rgba(255,255,255,0.02))',
-    border: '1px solid var(--glass-border)',
-    padding: '4px 10px',
+    background: '#F8FAFC',
+    border: '1px solid #E5E7EB',
+    padding: '6px 12px',
     borderRadius: '20px',
-    fontSize: '0.75rem',
-    fontWeight: '600',
-    color: 'var(--text-secondary, #cbd5e1)',
-    marginLeft: '4px',
-    marginRight: '12px',
-    boxShadow: '0 0 10px rgba(0, 242, 254, 0.05)',
-    letterSpacing: '0.3px',
-    userSelect: 'none',
+    fontSize: '0.8rem',
+    fontWeight: '500',
+    color: '#4B5563',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 'calc(100% + 8px)',
+    right: 0,
+    width: '220px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+    zIndex: 1000,
+    padding: '8px 0',
+    textAlign: 'left',
+  },
+  menuHeader: {
+    padding: '10px 16px',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  menuDivider: {
+    height: '1px',
+    background: '#E5E7EB',
+    margin: '6px 0',
+  },
+  menuItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '10px 16px',
+    fontSize: '0.88rem',
+    color: '#374151',
+    textDecoration: 'none',
+    fontWeight: 500,
+    cursor: 'pointer',
+    border: 'none',
+    background: 'none',
+    width: '100%',
+    textAlign: 'left',
+  },
+  langSubmenuBox: {
+    background: '#F8FAFC',
+    padding: '4px',
+    margin: '4px 8px',
+    borderRadius: '8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  langOptionBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 12px',
+    borderRadius: '6px',
+    border: 'none',
+    fontSize: '0.82rem',
+    cursor: 'pointer',
+    width: '100%',
+    textAlign: 'left',
   },
 };
-

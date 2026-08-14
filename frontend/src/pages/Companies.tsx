@@ -141,25 +141,34 @@ export const Companies: React.FC = () => {
 
             <div style={styles.metaRow}>
               <div style={styles.metaItem}>
-                <MapPin size={14} color="#64748b" />
+                <MapPin size={14} color="#6B7280" />
                 <span>{c.location}</span>
               </div>
               <div style={styles.metaItem}>
-                <Briefcase size={14} color="#64748b" />
-                <span style={{ color: '#00f2fe', fontWeight: 'bold' }}>{c.openJobsCount} Open Role</span>
+                <Briefcase size={14} color="#6B7280" />
+                <span style={{ color: '#2563EB', fontWeight: 'bold' }}>{c.openJobsCount} Open Role</span>
               </div>
             </div>
 
             <div style={styles.cardFooter}>
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Size: {c.employees} employees</span>
-              <Link 
-                to={`/?search=${c.name}`} 
-                className="btn-primary" 
-                style={{ padding: '6px 12px', fontSize: '0.75rem', gap: '4px' }}
-              >
-                <span>View Jobs</span>
-                <ArrowUpRight size={12} />
-              </Link>
+              <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>Size: {c.employees} employees</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Link 
+                  to={`/company/${c.id}`} 
+                  className="btn-secondary" 
+                  style={{ padding: '6px 12px', fontSize: '0.75rem', gap: '4px' }}
+                >
+                  <span>Profile</span>
+                  <ArrowUpRight size={12} />
+                </Link>
+                <Link 
+                  to={`/jobs?what=${encodeURIComponent(c.name)}`} 
+                  className="btn-primary" 
+                  style={{ padding: '6px 12px', fontSize: '0.75rem', gap: '4px' }}
+                >
+                  <span>View Jobs</span>
+                </Link>
+              </div>
             </div>
           </div>
         ))}
@@ -183,10 +192,11 @@ const styles = {
     fontWeight: '800',
     marginBottom: '10px',
     letterSpacing: '-0.5px',
+    color: '#111827',
   },
   subtitle: {
     fontSize: '1rem',
-    color: '#94a3b8',
+    color: '#4B5563',
     maxWidth: '600px',
     margin: '0 auto',
   },
@@ -201,6 +211,10 @@ const styles = {
     flexDirection: 'column' as const,
     justifyContent: 'space-between',
     height: '350px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    boxShadow: 'var(--shadow-card)',
   },
   cardHeader: {
     display: 'flex',
@@ -212,31 +226,32 @@ const styles = {
     width: '48px',
     height: '48px',
     borderRadius: '12px',
-    border: '1px solid',
+    border: '1px solid #6B7280',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    background: '#F8FAFC',
   },
   companyName: {
-    fontSize: '1.05rem',
+    fontSize: '1.1rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
     marginBottom: '4px',
   },
   ratingBadge: {
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
-    background: 'rgba(251, 191, 36, 0.1)',
-    color: '#fbbf24',
+    background: '#FEF3C7',
+    color: '#D97706',
     padding: '4px 8px',
     borderRadius: '8px',
     fontSize: '0.8rem',
     fontWeight: '700' as const,
   },
   desc: {
-    fontSize: '0.82rem',
-    color: '#94a3b8',
+    fontSize: '0.85rem',
+    color: '#374151',
     lineHeight: '1.5',
     flex: 1,
     marginBottom: '16px',
@@ -250,15 +265,15 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: '16px',
-    borderTop: '1px solid rgba(255,255,255,0.04)',
+    borderTop: '1px solid #F1F5F9',
     paddingTop: '12px',
   },
   metaItem: {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    fontSize: '0.78rem',
-    color: '#64748b',
+    fontSize: '0.8rem',
+    color: '#4B5563',
   },
   cardFooter: {
     display: 'flex',

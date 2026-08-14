@@ -1,0 +1,240 @@
+[33m0757ac8[m Initial commit - RecruitNexus
+ .env.example                                       |   14 [32m+[m
+ backend/.vs/VSWorkspaceState.json                  |    9 [32m+[m
+ .../050b187b-8f9a-4083-b73c-903c3cf793fe.vsidx     |  Bin [31m0[m -> [32m10791[m bytes
+ .../2897018a-cc64-4861-a8a1-67efc5543368.vsidx     |  Bin [31m0[m -> [32m6191[m bytes
+ .../7744f8ad-1120-4317-aca3-1cb4bf856c57.vsidx     |  Bin [31m0[m -> [32m9315[m bytes
+ .../a844ef72-744b-43a3-ab75-7e11e5c915fb.vsidx     |  Bin [31m0[m -> [32m590055[m bytes
+ .../d5bf9220-45b2-49c6-bcc1-2a33e8e4552a.vsidx     |  Bin [31m0[m -> [32m9893[m bytes
+ .../.vs/backend.slnx/config/applicationhost.config | 1016 [32m+++++[m
+ backend/.vs/backend.slnx/v18/.wsuo                 |  Bin [31m0[m -> [32m41984[m bytes
+ .../backend.slnx/v18/DocumentLayout.backup.json    |   89 [32m+[m
+ backend/.vs/backend.slnx/v18/DocumentLayout.json   |   89 [32m+[m
+ backend/.vs/slnx.sqlite                            |  Bin [31m0[m -> [32m323584[m bytes
+ backend/Controllers/AiController.cs                |  160 [32m+[m
+ backend/Controllers/AnalyticsController.cs         |  135 [32m+[m
+ backend/Controllers/ApplicationsController.cs      |  568 [32m+++[m
+ backend/Controllers/AuthController.cs              |  450 [32m+++[m
+ backend/Controllers/CompaniesController.cs         |  144 [32m+[m
+ backend/Controllers/InterviewsController.cs        |  566 [32m+++[m
+ backend/Controllers/JobsController.cs              |  258 [32m++[m
+ backend/DTOs/ApplicationDTOs.cs                    |   29 [32m+[m
+ backend/DTOs/AuthDTOs.cs                           |   59 [32m+[m
+ backend/DTOs/ChatDTOs.cs                           |   27 [32m+[m
+ backend/DTOs/InterviewDTOs.cs                      |   59 [32m+[m
+ backend/DTOs/JobDTOs.cs                            |   46 [32m+[m
+ backend/DTOs/TranslateDTOs.cs                      |   18 [32m+[m
+ backend/Data/DatabaseSeeder.cs                     |  757 [32m++++[m
+ backend/Data/RecruitmentDbContext.cs               |  107 [32m+[m
+ backend/Dockerfile                                 |   23 [32m+[m
+ backend/Helpers/JwtHelper.cs                       |   36 [32m+[m
+ backend/Models/Application.cs                      |   34 [32m+[m
+ backend/Models/Company.cs                          |   15 [32m+[m
+ backend/Models/Interview.cs                        |   36 [32m+[m
+ backend/Models/Job.cs                              |   32 [32m+[m
+ backend/Models/Profile.cs                          |   21 [32m+[m
+ backend/Models/SavedJob.cs                         |   19 [32m+[m
+ backend/Models/User.cs                             |   31 [32m+[m
+ backend/Program.cs                                 |  157 [32m+[m
+ backend/Properties/launchSettings.json             |   23 [32m+[m
+ backend/Services/EmailService.cs                   |   96 [32m+[m
+ backend/Services/GeminiService.cs                  |  393 [32m++[m
+ backend/appsettings.Development.json               |    8 [32m+[m
+ backend/appsettings.json                           |   26 [32m+[m
+ backend/backend.csproj                             |   23 [32m+[m
+ backend/backend.http                               |    6 [32m+[m
+ .../Debug/net10.0/BouncyCastle.Cryptography.dll    |  Bin [31m0[m -> [32m4924576[m bytes
+ backend/bin/Debug/net10.0/Humanizer.dll            |  Bin [31m0[m -> [32m355944[m bytes
+ backend/bin/Debug/net10.0/MailKit.dll              |  Bin [31m0[m -> [32m989184[m bytes
+ ...crosoft.AspNetCore.Authentication.JwtBearer.dll |  Bin [31m0[m -> [32m52496[m bytes
+ .../net10.0/Microsoft.Bcl.AsyncInterfaces.dll      |  Bin [31m0[m -> [32m19072[m bytes
+ .../bin/Debug/net10.0/Microsoft.Build.Locator.dll  |  Bin [31m0[m -> [32m44576[m bytes
+ .../Microsoft.CodeAnalysis.CSharp.Workspaces.dll   |  Bin [31m0[m -> [32m883472[m bytes
+ .../net10.0/Microsoft.CodeAnalysis.CSharp.dll      |  Bin [31m0[m -> [32m6501536[m bytes
+ ...t.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll |  Bin [31m0[m -> [32m86688[m bytes
+ .../Microsoft.CodeAnalysis.Workspaces.MSBuild.dll  |  Bin [31m0[m -> [32m72864[m bytes
+ .../net10.0/Microsoft.CodeAnalysis.Workspaces.dll  |  Bin [31m0[m -> [32m3852448[m bytes
+ .../bin/Debug/net10.0/Microsoft.CodeAnalysis.dll   |  Bin [31m0[m -> [32m2895520[m bytes
+ .../bin/Debug/net10.0/Microsoft.Data.Sqlite.dll    |  Bin [31m0[m -> [32m174664[m bytes
+ .../Microsoft.EntityFrameworkCore.Abstractions.dll |  Bin [31m0[m -> [32m34888[m bytes
+ .../Microsoft.EntityFrameworkCore.Design.dll       |  Bin [31m0[m -> [32m623176[m bytes
+ .../Microsoft.EntityFrameworkCore.Relational.dll   |  Bin [31m0[m -> [32m2141216[m bytes
+ .../Microsoft.EntityFrameworkCore.Sqlite.dll       |  Bin [31m0[m -> [32m294944[m bytes
+ .../net10.0/Microsoft.EntityFrameworkCore.dll      |  Bin [31m0[m -> [32m2691104[m bytes
+ .../Microsoft.Extensions.DependencyModel.dll       |  Bin [31m0[m -> [32m85288[m bytes
+ .../Microsoft.IdentityModel.Abstractions.dll       |  Bin [31m0[m -> [32m19488[m bytes
+ .../Microsoft.IdentityModel.JsonWebTokens.dll      |  Bin [31m0[m -> [32m143392[m bytes
+ .../net10.0/Microsoft.IdentityModel.Logging.dll    |  Bin [31m0[m -> [32m36784[m bytes
+ ...osoft.IdentityModel.Protocols.OpenIdConnect.dll |  Bin [31m0[m -> [32m137144[m bytes
+ .../net10.0/Microsoft.IdentityModel.Protocols.dll  |  Bin [31m0[m -> [32m40880[m bytes
+ .../net10.0/Microsoft.IdentityModel.Tokens.dll     |  Bin [31m0[m -> [32m329248[m bytes
+ backend/bin/Debug/net10.0/Microsoft.OpenApi.dll    |  Bin [31m0[m -> [32m233408[m bytes
+ backend/bin/Debug/net10.0/MimeKit.dll              |  Bin [31m0[m -> [32m1332736[m bytes
+ backend/bin/Debug/net10.0/Mono.TextTemplating.dll  |  Bin [31m0[m -> [32m177664[m bytes
+ backend/bin/Debug/net10.0/MySqlConnector.dll       |  Bin [31m0[m -> [32m857448[m bytes
+ .../net10.0/Pomelo.EntityFrameworkCore.MySql.dll   |  Bin [31m0[m -> [32m526848[m bytes
+ .../Debug/net10.0/SQLitePCLRaw.batteries_v2.dll    |  Bin [31m0[m -> [32m5120[m bytes
+ backend/bin/Debug/net10.0/SQLitePCLRaw.core.dll    |  Bin [31m0[m -> [32m51200[m bytes
+ .../net10.0/SQLitePCLRaw.provider.e_sqlite3.dll    |  Bin [31m0[m -> [32m36864[m bytes
+ .../net10.0/Swashbuckle.AspNetCore.Swagger.dll     |  Bin [31m0[m -> [32m17408[m bytes
+ .../net10.0/Swashbuckle.AspNetCore.SwaggerGen.dll  |  Bin [31m0[m -> [32m118784[m bytes
+ .../net10.0/Swashbuckle.AspNetCore.SwaggerUI.dll   |  Bin [31m0[m -> [32m2270720[m bytes
+ backend/bin/Debug/net10.0/System.CodeDom.dll       |  Bin [31m0[m -> [32m184944[m bytes
+ .../net10.0/System.Composition.AttributedModel.dll |  Bin [31m0[m -> [32m20096[m bytes
+ .../net10.0/System.Composition.Convention.dll      |  Bin [31m0[m -> [32m53880[m bytes
+ .../Debug/net10.0/System.Composition.Hosting.dll   |  Bin [31m0[m -> [32m55440[m bytes
+ .../Debug/net10.0/System.Composition.Runtime.dll   |  Bin [31m0[m -> [32m26240[m bytes
+ .../net10.0/System.Composition.TypedParts.dll      |  Bin [31m0[m -> [32m65168[m bytes
+ .../net10.0/System.IdentityModel.Tokens.Jwt.dll    |  Bin [31m0[m -> [32m90032[m bytes
+ backend/bin/Debug/net10.0/UglyToad.PdfPig.Core.dll |  Bin [31m0[m -> [32m43008[m bytes
+ .../bin/Debug/net10.0/UglyToad.PdfPig.Fonts.dll    |  Bin [31m0[m -> [32m1021952[m bytes
+ .../Debug/net10.0/UglyToad.PdfPig.Tokenization.dll |  Bin [31m0[m -> [32m20992[m bytes
+ .../bin/Debug/net10.0/UglyToad.PdfPig.Tokens.dll   |  Bin [31m0[m -> [32m43008[m bytes
+ backend/bin/Debug/net10.0/UglyToad.PdfPig.dll      |  Bin [31m0[m -> [32m3971072[m bytes
+ .../bin/Debug/net10.0/appsettings.Development.json |    8 [32m+[m
+ backend/bin/Debug/net10.0/appsettings.json         |   26 [32m+[m
+ backend/bin/Debug/net10.0/backend.deps.json        | 1230 [32m++++++[m
+ backend/bin/Debug/net10.0/backend.dll              |  Bin [31m0[m -> [32m281600[m bytes
+ backend/bin/Debug/net10.0/backend.exe              |  Bin [31m0[m -> [32m162304[m bytes
+ backend/bin/Debug/net10.0/backend.pdb              |  Bin [31m0[m -> [32m66824[m bytes
+ .../bin/Debug/net10.0/backend.runtimeconfig.json   |   20 [32m+[m
+ .../net10.0/backend.staticwebassets.endpoints.json |    1 [32m+[m
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18080[m bytes
+ .../cs/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m421552[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m48304[m bytes
+ .../cs/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m46752[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18080[m bytes
+ .../de/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m450208[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m49824[m bytes
+ .../de/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m48304[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18080[m bytes
+ .../es/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m440480[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17584[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m49824[m bytes
+ .../es/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m48304[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18192[m bytes
+ .../fr/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m451232[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17680[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m50848[m bytes
+ .../fr/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m48800[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18096[m bytes
+ .../it/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m447240[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17584[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m50336[m bytes
+ .../it/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m48800[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18096[m bytes
+ .../ja/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m492704[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17584[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m53408[m bytes
+ .../ja/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m51872[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18192[m bytes
+ .../ko/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m452272[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m50336[m bytes
+ .../ko/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m48800[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18208[m bytes
+ .../pl/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m453280[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m49840[m bytes
+ .../pl/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m48816[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18096[m bytes
+ .../Microsoft.CodeAnalysis.CSharp.resources.dll    |  Bin [31m0[m -> [32m432800[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m49312[m bytes
+ .../pt-BR/Microsoft.CodeAnalysis.resources.dll     |  Bin [31m0[m -> [32m47264[m bytes
+ backend/bin/Debug/net10.0/recruitment.db           |  Bin [31m0[m -> [32m77824[m bytes
+ backend/bin/Debug/net10.0/recruitment.db-shm       |  Bin [31m0[m -> [32m32768[m bytes
+ backend/bin/Debug/net10.0/recruitment.db-wal       |  Bin [31m0[m -> [32m78312[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18704[m bytes
+ .../ru/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m595104[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m57504[m bytes
+ .../ru/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m58528[m bytes
+ .../browser-wasm/nativeassets/net9.0/e_sqlite3.a   |  Bin [31m0[m -> [32m1185672[m bytes
+ .../runtimes/linux-arm/native/libe_sqlite3.so      |  Bin [31m0[m -> [32m879532[m bytes
+ .../runtimes/linux-arm64/native/libe_sqlite3.so    |  Bin [31m0[m -> [32m1366840[m bytes
+ .../runtimes/linux-armel/native/libe_sqlite3.so    |  Bin [31m0[m -> [32m1239796[m bytes
+ .../runtimes/linux-mips64/native/libe_sqlite3.so   |  Bin [31m0[m -> [32m1588656[m bytes
+ .../runtimes/linux-musl-arm/native/libe_sqlite3.so |  Bin [31m0[m -> [32m1197988[m bytes
+ .../linux-musl-arm64/native/libe_sqlite3.so        |  Bin [31m0[m -> [32m1379920[m bytes
+ .../linux-musl-s390x/native/libe_sqlite3.so        |  Bin [31m0[m -> [32m1536984[m bytes
+ .../runtimes/linux-musl-x64/native/libe_sqlite3.so |  Bin [31m0[m -> [32m1305568[m bytes
+ .../runtimes/linux-ppc64le/native/libe_sqlite3.so  |  Bin [31m0[m -> [32m1721728[m bytes
+ .../runtimes/linux-s390x/native/libe_sqlite3.so    |  Bin [31m0[m -> [32m1482712[m bytes
+ .../runtimes/linux-x64/native/libe_sqlite3.so      |  Bin [31m0[m -> [32m1330920[m bytes
+ .../runtimes/linux-x86/native/libe_sqlite3.so      |  Bin [31m0[m -> [32m1394584[m bytes
+ .../maccatalyst-arm64/native/libe_sqlite3.dylib    |  Bin [31m0[m -> [32m1551824[m bytes
+ .../maccatalyst-x64/native/libe_sqlite3.dylib      |  Bin [31m0[m -> [32m1590112[m bytes
+ .../runtimes/osx-arm64/native/libe_sqlite3.dylib   |  Bin [31m0[m -> [32m1536608[m bytes
+ .../runtimes/osx-x64/native/libe_sqlite3.dylib     |  Bin [31m0[m -> [32m1557432[m bytes
+ .../net10.0/runtimes/win-arm/native/e_sqlite3.dll  |  Bin [31m0[m -> [32m1256960[m bytes
+ .../runtimes/win-arm64/native/e_sqlite3.dll        |  Bin [31m0[m -> [32m1568768[m bytes
+ .../net10.0/runtimes/win-x64/native/e_sqlite3.dll  |  Bin [31m0[m -> [32m1759232[m bytes
+ .../net10.0/runtimes/win-x86/native/e_sqlite3.dll  |  Bin [31m0[m -> [32m1429504[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18192[m bytes
+ .../tr/Microsoft.CodeAnalysis.CSharp.resources.dll |  Bin [31m0[m -> [32m429216[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17584[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m48288[m bytes
+ .../tr/Microsoft.CodeAnalysis.resources.dll        |  Bin [31m0[m -> [32m46752[m bytes
+ .../18_9347245f-4c1f-474e-8adb-69acaba4c474.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../18_a35505b4-c726-4a7d-954c-6a840adcc078.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../18_fde11ccd-93ad-4a90-b1b8-38a5231abcf5.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../21_c00c6281-0d08-41e9-a6c4-06bc29b1236b.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../22_ab420b88-0708-43df-a38b-e1d9f2f9074d.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../24_3ac67553-6e3e-49c8-afaa-bb1a7a80dc92.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../24_657d06ca-c0bd-4051-9570-c981b87ebbbc.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../25_180939f3-6b4b-4366-82ce-465b85b0addb.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../28_d0881bd7-42b9-4d5a-9b37-12e357476527.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../29_4289ced4-41dd-483f-9c2c-05c937542fb6.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ .../30_dfd179f1-8330-4701-b43b-07c58b0a966d.pdf    |  Bin [31m0[m -> [32m305959[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18080[m bytes
+ .../Microsoft.CodeAnalysis.CSharp.resources.dll    |  Bin [31m0[m -> [32m382128[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m46240[m bytes
+ .../zh-Hans/Microsoft.CodeAnalysis.resources.dll   |  Bin [31m0[m -> [32m43680[m bytes
+ ...ft.CodeAnalysis.CSharp.Workspaces.resources.dll |  Bin [31m0[m -> [32m18192[m bytes
+ .../Microsoft.CodeAnalysis.CSharp.resources.dll    |  Bin [31m0[m -> [32m381600[m bytes
+ ...ysis.Workspaces.MSBuild.BuildHost.resources.dll |  Bin [31m0[m -> [32m17568[m bytes
+ ...Microsoft.CodeAnalysis.Workspaces.resources.dll |  Bin [31m0[m -> [32m46256[m bytes
+ .../zh-Hant/Microsoft.CodeAnalysis.resources.dll   |  Bin [31m0[m -> [32m44192[m bytes
+ ....NETCoreApp,Version=v10.0.AssemblyAttributes.cs |    4 [32m+[m
+ backend/obj/Debug/net10.0/apphost.exe              |  Bin [31m0[m -> [32m162304[m bytes
+ backend/obj/Debug/net10.0/backend.AssemblyInfo.cs  |   23 [32m+[m
+ .../Debug/net10.0/backend.AssemblyInfoInputs.cache |    1 [32m+[m
+ ...ckend.GeneratedMSBuildEditorConfig.editorconfig |   32 [32m+[m
+ .../obj/Debug/net10.0/backend.GlobalUsings.g.cs    |   17 [32m+[m
+ .../backend.MvcApplicationPartsAssemblyInfo.cache  |    0
+ .../backend.MvcApplicationPartsAssemblyInfo.cs     |   17 [32m+[m
+ backend/obj/Debug/net10.0/backend.assets.cache     |  Bin [31m0[m -> [32m56774[m bytes
+ .../net10.0/backend.csproj.AssemblyReference.cache |  Bin [31m0[m -> [32m16579[m bytes
+ .../net10.0/backend.csproj.CoreCompileInputs.cache |    1 [32m+[m
+ .../net10.0/backend.csproj.FileListAbsolute.txt    |  166 [32m+[m
+ backend/obj/Debug/net10.0/backend.csproj.Up2Date   |    0
+ backend/obj/Debug/net10.0/backend.dll              |  Bin [31m0[m -> [32m281600[m bytes
+ .../Debug/net10.0/backend.genruntimeconfig.cache   |    1 [32m+[m
+ backend/obj/Debug/net10.0/backend.pdb              |  Bin [31m0[m -> [32m66824[m bytes
+ backend/obj/Debug/net10.0/ref/backend.dll          |  Bin [31m0[m -> [32m47616[m bytes
+ backend/obj/Debug/net10.0/refint/backend.dll       |  Bin [31m0[m -> [32m47616[m bytes
+ .../obj/Debug/net10.0/rjsmcshtml.dswa.cache.json   |    1 [32m+[m
+ .../obj/Debug/net10.0/rjsmrazor.dswa.cache.json    |    1 [32m+[m
+ backend/obj/Debug/net10.0/rpswa.dswa.cache.json    |    1 [32m+[m
+ .../net10.0/staticwebassets.build.endpoints.json   |    1 [32m+[m
+ .../obj/Debug/net10.0/staticwebassets.build.json   |    1 [32m+[m
+ .../Debug/net10.0/staticwebassets.build.json.cache |    1 [32m+[m
+ .../staticwebassets.references.upToDateCheck.txt   |    0
+ backend/obj/Debug/net10.0/swae.build.ex.cache      |    0
+ ....NETCoreApp,Version=v10.0.AssemblyAttributes.cs |    4 [32m+[m
+ .../obj/Release/net10.0/backend.AssemblyInfo.cs    |   23 [32m+[m
+ .../net10.0/backend.AssemblyInfoInputs.cache       |    1 [32m+[m
+ ...ckend.GeneratedMSBuildEditorConfig.editorconfig |   32 [32m+[m
+ .../obj/Release/net10.0/backend.GlobalUsings.g.cs  |   17 [32m+[m
+ backend/obj/Release/net10.0/backend.assets.cache   |  Bin [31m0[m -> [32m56774[m bytes
+ .../net10.0/backend.csproj.AssemblyReference.cache |  Bin [31m0[m -> [32m16579[m bytes
+ backend/obj/backend.csproj.nuget.dgspec.json       |  528 [32m+++[m
+ backend/obj/backend.csproj.nuget.g.props           |   27 [32m+[m
+ backend/obj/backend.csproj.nuget.g.targets         |    9 [32m+[m
+ backend/obj/project.assets.json                    | 4027 [32m++++++++++++++++++++[m
+ backend/obj/project.nuget.cache                    |   78 [32m+[m
+ backend/recruitment.db                             |  Bin [31m0[m

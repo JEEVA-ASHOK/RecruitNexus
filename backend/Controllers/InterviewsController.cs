@@ -493,6 +493,112 @@ namespace backend.Controllers
             return Ok(new { message = "Interview completed and results updated successfully." });
         }
 
+        [HttpPost("{id}/start-ai-interview")]
+        [Authorize]
+        public async Task<IActionResult> StartAiInterview(int id)
+        {
+            var userId = GetUserId();
+            var role = GetUserRole();
+
+            var interview = await _context.Interviews
+                .Include(i => i.Application)
+                .ThenInclude(a => a!.Job)
+                .Include(i => i.Application)
+                .ThenInclude(a => a!.Candidate)
+                .FirstOrDefaultAsync(i => i.Id == id);
+
+            if (interview == null) return NotFound(new { message = "Interview not found." });
+
+            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId))
+            {
+                return Forbid();
+            }
+
+            // Return existing questions if already generated
+            if (!string.IsNullOrWhiteSpace(interview.AI_Questions))
+            {
+                return Ok(new { interviewId = interview.Id, questions = interview.AI_Questions, format = interview.Format });
+            }
+
+            var resumeText = GetResumeText(interview.Application?.ResumePath ?? "");
+            var jobTitle = interview.Application?.Job?.Title ?? "Software Engineer";
+            var jobDesc = interview.Application?.Job?.Description ?? "Technical developer role.";
+            var jobReqs = interview.Application?.Job?.Requirements ?? "React, C#, SQL, REST APIs.";
+
+            var aiResult = await _geminiService.GenerateInterviewQuestionsAsync(resumeText, jobTitle, jobDesc, jobReqs);
+            var questionsJson = System.Text.Json.JsonSerializer.Serialize(aiResult);
+
+            interview.AI_Questions = questionsJson;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { interviewId = interview.Id, questions = questionsJson, format = interview.Format });
+        }
+
+        [HttpPost("{id}/submit-answer")]
+        [Authorize]
+        public async Task<IActionResult> SubmitAnswer(int id, [FromBody] SubmitAnswerRequest request)
+        {
+            var userId = GetUserId();
+            var role = GetUserRole();
+
+            var interview = await _context.Interviews
+                .Include(i => i.Application)
+                .FirstOrDefaultAsync(i => i.Id == id);
+
+            if (interview == null) return NotFound(new { message = "Interview not found." });
+
+            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId))
+            {
+                return Forbid();
+            }
+
+            return Ok(new { message = $"Answer for question #{request.QuestionNumber} registered successfully." });
+        }
+
+        [HttpPost("{id}/complete-ai-interview")]
+        [Authorize]
+        public async Task<IActionResult> CompleteAiInterview(int id, [FromBody] CompleteAiInterviewRequest request)
+        {
+            var userId = GetUserId();
+            var role = GetUserRole();
+
+            var interview = await _context.Interviews
+                .Include(i => i.Application)
+                .ThenInclude(a => a!.Candidate)
+                .Include(i => i.Application)
+                .ThenInclude(a => a!.Job)
+                .FirstOrDefaultAsync(i => i.Id == id);
+
+            if (interview == null) return NotFound(new { message = "Interview not found." });
+
+            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId))
+            {
+                return Forbid();
+            }
+
+            var candidateName = interview.Application?.Candidate?.FullName ?? "Candidate";
+            var jobTitle = interview.Application?.Job?.Title ?? "Target Role";
+            var format = interview.Format ?? "Technical";
+
+            var evaluation = await _geminiService.EvaluateInterviewAnswersAsync(candidateName, jobTitle, format, request.QaList);
+
+            var evalJson = System.Text.Json.JsonSerializer.Serialize(evaluation);
+
+            interview.Status = "Completed";
+            interview.Feedback = evalJson;
+            interview.Remarks = evaluation.ExecutiveSummary;
+            interview.ResultStatus = evaluation.OverallScore >= 85 ? "Selected" : (evaluation.OverallScore >= 70 ? "OnHold" : "Rejected");
+
+            if (interview.Application != null)
+            {
+                interview.Application.Status = interview.ResultStatus == "Selected" ? "Selected" : (interview.ResultStatus == "Rejected" ? "Rejected" : "Interviewing");
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(evaluation);
+        }
+
         private string GetResumeText(string resumePath)
         {
             var filePath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", resumePath);
@@ -562,5 +668,16 @@ namespace backend.Controllers
         public string ResultStatus { get; set; } = string.Empty; // Selected, Rejected, OnHold, NextRound
         public string Feedback { get; set; } = string.Empty;
         public string Remarks { get; set; } = string.Empty;
+    }
+
+    public class SubmitAnswerRequest
+    {
+        public int QuestionNumber { get; set; }
+        public string AnswerText { get; set; } = string.Empty;
+    }
+
+    public class CompleteAiInterviewRequest
+    {
+        public List<CandidateQaAnswerDto> QaList { get; set; } = new List<CandidateQaAnswerDto>();
     }
 }

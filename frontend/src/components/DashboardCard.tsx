@@ -13,7 +13,7 @@ export const DashboardCard: React.FC<DashboardCardProps> = ({
   value,
   subtext,
   icon,
-  accentColor = 'var(--accent-cyan)'
+  accentColor = '#2563EB'
 }) => {
   return (
     <div className="glass-panel" style={styles.card}>
@@ -32,6 +32,9 @@ export const DashboardCard: React.FC<DashboardCardProps> = ({
 const styles = {
   card: {
     padding: '20px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '16px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '12px',
@@ -44,9 +47,9 @@ const styles = {
     alignItems: 'flex-start',
   },
   title: {
-    fontSize: '0.85rem',
-    fontWeight: 600,
-    color: 'var(--text-secondary)',
+    fontSize: '0.82rem',
+    fontWeight: 700,
+    color: '#4B5563',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
   },
@@ -60,12 +63,12 @@ const styles = {
   value: {
     fontSize: '1.8rem',
     fontWeight: 800,
-    color: 'var(--text-primary)',
+    color: '#111827',
     lineHeight: '1.1',
   },
   subtext: {
     fontSize: '0.78rem',
-    color: 'var(--text-muted)',
+    color: '#6B7280',
     fontWeight: 500,
   },
 };

@@ -111,7 +111,7 @@ export const AiTools: React.FC = () => {
         {/* Left Side: Interactive Salary Estimator */}
         <div className="glass-panel" style={styles.calculatorCard}>
           <div style={styles.cardHeaderTitle}>
-            <BrainCircuit size={20} color="#00f2fe" style={{ filter: 'drop-shadow(0 0 4px #00f2fe)' }} />
+            <BrainCircuit size={20} color="#2563EB" style={{ filter: 'drop-shadow(0 0 4px #2563EB)' }} />
             <h2 style={styles.cardTitle}>AI Salary Predictor (India Market)</h2>
           </div>
           <p style={styles.calcDesc}>Estimate your market value dynamically using historical recruitment records and role criteria.</p>
@@ -191,11 +191,9 @@ export const AiTools: React.FC = () => {
       </div>
     </div>
   );
-};
-
-const styles = {
+};const styles = {
   container: {
-    maxWidth: '1300px',
+    maxWidth: '1200px',
     margin: '0 auto',
     padding: '40px 20px',
   },
@@ -208,10 +206,11 @@ const styles = {
     fontWeight: '800',
     marginBottom: '10px',
     letterSpacing: '-0.5px',
+    color: '#111827',
   },
   subtitle: {
     fontSize: '1rem',
-    color: '#94a3b8',
+    color: '#4B5563',
     maxWidth: '600px',
     margin: '0 auto',
   },
@@ -223,6 +222,10 @@ const styles = {
   },
   calculatorCard: {
     padding: '28px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    boxShadow: 'var(--shadow-card)',
   },
   cardHeaderTitle: {
     display: 'flex',
@@ -233,11 +236,11 @@ const styles = {
   cardTitle: {
     fontSize: '1.25rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
   calcDesc: {
-    fontSize: '0.85rem',
-    color: '#64748b',
+    fontSize: '0.88rem',
+    color: '#4B5563',
     lineHeight: '1.5',
     marginBottom: '20px',
   },
@@ -251,28 +254,30 @@ const styles = {
     marginBottom: '16px',
   },
   formLabel: {
-    fontSize: '0.78rem',
+    fontSize: '0.8rem',
     fontWeight: '600',
-    color: '#94a3b8',
+    color: '#374151',
     textTransform: 'uppercase' as const,
   },
   resultBox: {
-    background: 'rgba(255, 255, 255, 0.02)',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    background: '#F8FAFC',
+    border: '1px solid #E5E7EB',
     borderRadius: '12px',
     padding: '16px 20px',
     textAlign: 'center' as const,
   },
   resultLabel: {
-    fontSize: '0.75rem',
-    color: '#64748b',
+    fontSize: '0.78rem',
+    color: '#6B7280',
     display: 'block',
     marginBottom: '4px',
     textTransform: 'uppercase' as const,
+    fontWeight: '600',
   },
   resultValue: {
     fontSize: '1.45rem',
     fontWeight: '800',
+    color: '#2563EB',
   },
   toolsList: {
     display: 'flex',
@@ -281,6 +286,10 @@ const styles = {
   },
   toolCard: {
     padding: '20px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    boxShadow: 'var(--shadow-card)',
   },
   toolHeader: {
     display: 'flex',
@@ -296,11 +305,11 @@ const styles = {
   toolTitle: {
     fontSize: '1rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
   toolDesc: {
-    fontSize: '0.82rem',
-    color: '#94a3b8',
+    fontSize: '0.85rem',
+    color: '#374151',
     lineHeight: '1.5',
   }
 };

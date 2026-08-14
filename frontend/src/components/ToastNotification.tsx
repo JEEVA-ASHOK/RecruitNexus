@@ -38,7 +38,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void 
         return <AlertTriangle size={18} color="#f87171" />;
       case 'info':
       default:
-        return <Info size={18} color="#00f2fe" />;
+        return <Info size={18} color="#2563EB" />;
     }
   };
 
@@ -65,7 +65,7 @@ const ToastItem: React.FC<{ toast: ToastMessage; onRemove: (id: string) => void 
       <div style={styles.iconContainer}>{getIcon()}</div>
       <div style={styles.text}>{toast.text}</div>
       <button onClick={() => onRemove(toast.id)} style={styles.closeBtn}>
-        <X size={14} color="#64748b" />
+        <X size={14} color="#6B7280" />
       </button>
     </div>
   );

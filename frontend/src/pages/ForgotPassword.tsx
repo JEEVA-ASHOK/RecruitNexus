@@ -4,7 +4,6 @@ import { apiRequest } from '../api';
 import { Mail, ArrowLeft, Send, AlertCircle, CheckCircle } from 'lucide-react';
 
 export const ForgotPassword: React.FC = () => {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,22 +31,22 @@ export const ForgotPassword: React.FC = () => {
 
   return (
     <div style={styles.container}>
-      <div className="glass-panel" style={styles.card}>
+      <div style={styles.card}>
         <div style={styles.header}>
-          <h2 style={styles.title} className="text-glow text-gradient">Reset Password</h2>
+          <h2 style={styles.title}>Reset Password</h2>
           <p style={styles.subtitle}>Enter your email address and we'll send you a secure link to reset your credentials</p>
         </div>
 
         {error && (
-          <div style={styles.errorAlert} className="badge-red">
-            <AlertCircle size={16} />
+          <div style={styles.errorAlert}>
+            <AlertCircle size={18} />
             <span>{error}</span>
           </div>
         )}
 
         {success && (
-          <div style={styles.successAlert} className="badge-green">
-            <CheckCircle size={16} />
+          <div style={styles.successAlert}>
+            <CheckCircle size={18} />
             <span>{success}</span>
           </div>
         )}
@@ -65,7 +64,7 @@ export const ForgotPassword: React.FC = () => {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  style={{ paddingLeft: '42px' }}
+                  style={styles.fieldInput}
                 />
               </div>
             </div>
@@ -77,7 +76,7 @@ export const ForgotPassword: React.FC = () => {
           </form>
         ) : (
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <Link to="/login" className="btn-primary" style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center' }}>
+            <Link to="/login" className="btn-primary" style={{ ...styles.submitBtn, display: 'inline-flex', textDecoration: 'none', justifyContent: 'center' }}>
               <ArrowLeft size={18} style={{ marginRight: '8px' }} />
               Back to Sign In
             </Link>
@@ -86,7 +85,7 @@ export const ForgotPassword: React.FC = () => {
 
         {!success && (
           <p style={styles.footerText}>
-            <Link to="/login" style={styles.footerLink} className="footer-back-link">
+            <Link to="/login" style={styles.footerLink}>
               <ArrowLeft size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
               Back to Sign In
             </Link>
@@ -102,62 +101,74 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 'calc(100vh - 120px)',
-    padding: '24px',
+    minHeight: 'calc(100vh - 160px)',
+    padding: '40px 20px',
+    background: '#F8FAFC',
   },
   card: {
     width: '100%',
-    maxWidth: '440px',
-    padding: '40px',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    maxWidth: '460px',
+    padding: '44px 36px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '16px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
   },
   header: {
     textAlign: 'center',
     marginBottom: '32px',
   },
   title: {
-    fontSize: '2rem',
-    fontWeight: '800',
+    fontSize: '2.1rem',
+    fontWeight: 800,
     marginBottom: '8px',
+    color: '#111827',
+    letterSpacing: '-0.5px',
   },
   subtitle: {
-    fontSize: '0.9rem',
-    color: '#94a3b8',
-    lineHeight: '1.4',
+    fontSize: '0.95rem',
+    color: '#4B5563',
+    lineHeight: 1.4,
   },
   errorAlert: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '12px 16px',
-    borderRadius: '8px',
+    gap: '10px',
+    padding: '14px 16px',
+    borderRadius: '10px',
     marginBottom: '24px',
-    fontSize: '0.85rem',
+    fontSize: '0.88rem',
+    background: '#FEE2E2',
+    color: '#DC2626',
+    border: '1px solid #FCA5A5',
   },
   successAlert: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '12px 16px',
-    borderRadius: '8px',
+    gap: '10px',
+    padding: '14px 16px',
+    borderRadius: '10px',
     marginBottom: '24px',
-    fontSize: '0.85rem',
-    color: '#10b981',
+    fontSize: '0.88rem',
+    background: '#DCFCE7',
+    color: '#15803D',
+    border: '1px solid #BBF7D0',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
+    gap: '22px',
   },
   formGroup: {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+    textAlign: 'left',
   },
   label: {
-    fontSize: '0.85rem',
-    fontWeight: '600',
-    color: '#94a3b8',
+    fontSize: '0.88rem',
+    fontWeight: 600,
+    color: '#374151',
   },
   inputWrapper: {
     position: 'relative',
@@ -166,22 +177,39 @@ const styles: Record<string, React.CSSProperties> = {
   },
   inputIcon: {
     position: 'absolute',
-    left: '14px',
-    color: '#64748b',
+    left: '16px',
+    color: '#6B7280',
+    zIndex: 2,
+  },
+  fieldInput: {
+    height: '52px',
+    borderRadius: '10px',
+    border: '1px solid #D1D5DB',
+    paddingLeft: '48px',
+    paddingRight: '16px',
+    fontSize: '0.95rem',
+    color: '#111827',
+    background: '#FFFFFF',
+    width: '100%',
   },
   submitBtn: {
-    marginTop: '10px',
+    height: '50px',
+    borderRadius: '10px',
+    fontSize: '1rem',
+    fontWeight: 600,
     justifyContent: 'center',
+    marginTop: '6px',
+    width: '100%',
   },
   footerText: {
     textAlign: 'center',
-    fontSize: '0.9rem',
-    color: '#64748b',
-    marginTop: '24px',
+    fontSize: '0.92rem',
+    color: '#6B7280',
+    marginTop: '28px',
   },
   footerLink: {
-    color: '#00f2fe',
+    color: '#2563EB',
     textDecoration: 'none',
-    fontWeight: '600',
+    fontWeight: 600,
   },
 };

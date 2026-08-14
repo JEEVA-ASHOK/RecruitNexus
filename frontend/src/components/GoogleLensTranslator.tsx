@@ -7,8 +7,20 @@ import {
   Camera, X, Copy, Download, RefreshCw, AlertCircle, FileText, Check, Globe 
 } from 'lucide-react';
 
-export const GoogleLensTranslator: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+interface GoogleLensTranslatorProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  showTrigger?: boolean;
+}
+
+export const GoogleLensTranslator: React.FC<GoogleLensTranslatorProps> = ({
+  isOpen: externalIsOpen,
+  onClose: externalOnClose,
+  showTrigger = false
+}) => {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
+
   const [imgSrc, setImgSrc] = useState('');
   const [crop, setCrop] = useState<Crop>({
     unit: '%',
@@ -38,7 +50,8 @@ export const GoogleLensTranslator: React.FC = () => {
 
   // Reset states
   const handleClose = () => {
-    setIsOpen(false);
+    setInternalIsOpen(false);
+    if (externalOnClose) externalOnClose();
     setImgSrc('');
     setOcrText('');
     setTranslatedText('');
@@ -170,15 +183,17 @@ export const GoogleLensTranslator: React.FC = () => {
   return (
     <>
       {/* Floating Action Trigger Button (Bottom-Left) */}
-      <button 
-        onClick={() => setIsOpen(true)}
-        style={styles.floatingTrigger}
-        title="Google Lens Translator"
-        className="btn-primary"
-      >
-        <Camera size={15} style={{ filter: 'drop-shadow(0 0 1.5px #fff)' }} />
-        <span style={{ fontSize: '0.72rem', fontWeight: 'bold' }}>Lens Translator</span>
-      </button>
+      {showTrigger && (
+        <button 
+          onClick={() => setInternalIsOpen(true)}
+          style={styles.floatingTrigger}
+          title="Google Lens Translator"
+          className="btn-primary"
+        >
+          <Camera size={15} style={{ filter: 'drop-shadow(0 0 1.5px #fff)' }} />
+          <span style={{ fontSize: '0.72rem', fontWeight: 'bold' }}>Lens Translator</span>
+        </button>
+      )}
 
       {/* Modal Dialog */}
       {isOpen && (
@@ -187,7 +202,7 @@ export const GoogleLensTranslator: React.FC = () => {
             {/* Modal Header */}
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Camera size={20} color="#00f2fe" />
+                <Camera size={20} color="#2563EB" />
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0, color: '#fff' }}>Google Lens Translator</h2>
               </div>
               <button onClick={handleClose} style={styles.closeBtn}>
@@ -202,7 +217,7 @@ export const GoogleLensTranslator: React.FC = () => {
               <div style={styles.leftColumn}>
                 {!imgSrc ? (
                   <div style={styles.uploadDropZone}>
-                    <Camera size={36} color="#64748b" style={{ marginBottom: '12px' }} />
+                    <Camera size={36} color="#6B7280" style={{ marginBottom: '12px' }} />
                     <input 
                       type="file" 
                       accept="image/*" 
@@ -213,7 +228,7 @@ export const GoogleLensTranslator: React.FC = () => {
                     <label htmlFor="lens-image-picker" style={styles.uploadLabel}>
                       Select Image to Scan
                     </label>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>Supports JPG, PNG, WEBP</span>
+                    <span style={{ fontSize: '0.75rem', color: '#6B7280', marginTop: '6px' }}>Supports JPG, PNG, WEBP</span>
                   </div>
                 ) : (
                   <div style={styles.cropContainer}>
@@ -234,7 +249,7 @@ export const GoogleLensTranslator: React.FC = () => {
 
                     <div style={styles.cropActions}>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
-                        <Globe size={16} color="#64748b" />
+                        <Globe size={16} color="#6B7280" />
                         <select
                           value={targetLang}
                           onChange={(e) => setTargetLang(e.target.value)}
@@ -399,7 +414,7 @@ const styles = {
   closeBtn: {
     background: 'transparent',
     border: 'none',
-    color: '#64748b',
+    color: '#6B7280',
     cursor: 'pointer',
     padding: '4px',
   },
@@ -509,7 +524,7 @@ const styles = {
   sectionLabel: {
     fontSize: '0.78rem',
     fontWeight: '600',
-    color: '#94a3b8',
+    color: '#6B7280',
     textTransform: 'uppercase' as const,
   },
   textBox: {
@@ -525,7 +540,7 @@ const styles = {
   iconActionBtn: {
     background: 'transparent',
     border: 'none',
-    color: '#64748b',
+    color: '#6B7280',
     cursor: 'pointer',
     padding: '2px',
   },
@@ -535,7 +550,7 @@ const styles = {
     border: '1px solid var(--glass-border)',
     borderRadius: '8px',
     padding: '10px 14px',
-    color: '#cbd5e1',
+    color: '#6B7280',
     fontFamily: 'monospace',
     fontSize: '0.8rem',
     outline: 'none',

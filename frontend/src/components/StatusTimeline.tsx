@@ -55,16 +55,16 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, i
           if (isActive) {
             if (step.key === 'Final' && isRejected) {
               bubbleStyle = { ...bubbleStyle, ...styles.bubbleRejected };
-              labelColor = '#f87171';
-              icon = <X size={12} color="#0b0d19" />;
+              labelColor = '#DC2626';
+              icon = <X size={12} color="#FFFFFF" />;
             } else {
               bubbleStyle = { ...bubbleStyle, ...styles.bubbleActive };
-              labelColor = 'var(--accent-cyan)';
+              labelColor = '#2563EB';
             }
           } else if (isCompleted) {
             bubbleStyle = { ...bubbleStyle, ...styles.bubbleCompleted };
-            labelColor = '#a7f3d0';
-            icon = <Check size={12} color="#0b0d19" />;
+            labelColor = '#16A34A';
+            icon = <Check size={12} color="#FFFFFF" />;
           } else {
             bubbleStyle = { ...bubbleStyle, ...styles.bubbleFuture };
           }
@@ -83,8 +83,8 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, i
                   style={{
                     ...styles.connector,
                     background: isCompleted
-                      ? (isRejected && idx >= activeIndex - 1 ? 'rgba(239, 68, 68, 0.4)' : 'var(--accent-cyan)')
-                      : 'rgba(255,255,255,0.06)'
+                      ? (isRejected && idx >= activeIndex - 1 ? '#DC2626' : '#2563EB')
+                      : '#E5E7EB'
                   }} 
                 />
               )}
@@ -95,8 +95,8 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, i
 
       {isRejected && (
         <div style={styles.rejectionNotice}>
-          <AlertCircle size={16} color="#f87171" />
-          <span style={{ color: '#f87171', fontSize: '0.85rem', fontWeight: 600 }}>
+          <AlertCircle size={16} color="#DC2626" />
+          <span style={{ color: '#DC2626', fontSize: '0.85rem', fontWeight: 600 }}>
             Application Status: Closed / Rejected
           </span>
         </div>
@@ -107,9 +107,9 @@ export const StatusTimeline: React.FC<StatusTimelineProps> = ({ currentStatus, i
 
 const styles = {
   container: {
-    padding: '24px 16px',
-    background: 'rgba(255, 255, 255, 0.01)',
-    border: '1px solid var(--glass-border)',
+    padding: '20px 16px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
     borderRadius: '12px',
     marginTop: '16px',
     marginBottom: '16px',
@@ -140,38 +140,35 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 'bold',
-    transition: 'all 0.3s ease',
+    transition: 'all 0.2s ease',
   },
   bubbleCompleted: {
-    backgroundColor: 'var(--accent-cyan)',
-    boxShadow: '0 0 10px rgba(0, 242, 254, 0.3)',
-    color: '#0b0d19',
+    backgroundColor: '#16A34A',
+    color: '#FFFFFF',
   },
   bubbleActive: {
-    backgroundColor: 'rgba(0, 242, 254, 0.1)',
-    border: '2px solid var(--accent-cyan)',
-    boxShadow: '0 0 15px rgba(0, 242, 254, 0.4)',
-    color: 'var(--accent-cyan)',
+    backgroundColor: '#EFF6FF',
+    border: '2px solid #2563EB',
+    color: '#2563EB',
   },
   bubbleFuture: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid var(--glass-border)',
-    color: 'var(--text-muted)',
+    backgroundColor: '#F8FAFC',
+    border: '1px solid #E5E7EB',
+    color: '#6B7280',
   },
   bubbleRejected: {
-    backgroundColor: '#f87171',
-    boxShadow: '0 0 10px rgba(248, 113, 113, 0.3)',
-    color: '#0b0d19',
+    backgroundColor: '#DC2626',
+    color: '#FFFFFF',
   },
   connector: {
     flex: 1,
     height: '2px',
     minWidth: '20px',
-    marginTop: '-24px', // Align with bubbles middle
-    transition: 'all 0.3s ease',
+    marginTop: '-24px',
+    transition: 'all 0.2s ease',
   },
   label: {
-    fontSize: '0.72rem',
+    fontSize: '0.75rem',
     fontWeight: 600,
     whiteSpace: 'nowrap' as const,
   },
@@ -181,8 +178,8 @@ const styles = {
     gap: '8px',
     marginTop: '16px',
     padding: '8px 12px',
-    background: 'rgba(239, 68, 68, 0.05)',
-    border: '1px solid rgba(239, 68, 68, 0.15)',
+    background: '#FEF2F2',
+    border: '1px solid #FCA5A5',
     borderRadius: '8px',
     justifyContent: 'center',
   }

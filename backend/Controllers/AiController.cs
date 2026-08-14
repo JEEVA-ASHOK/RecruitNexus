@@ -207,6 +207,27 @@ System Overview Statistics:
             }
         }
 
+        [HttpPost("save-questions")]
+        [Authorize(Roles = "Recruiter,Admin")]
+        public async Task<IActionResult> SaveQuestions([FromBody] SaveQuestionsRequest request)
+        {
+            if (request == null || request.InterviewId <= 0 || string.IsNullOrEmpty(request.QuestionsJson))
+            {
+                return BadRequest(new { message = "Valid InterviewId and QuestionsJson are required." });
+            }
+
+            var interview = await _context.Interviews.FirstOrDefaultAsync(i => i.Id == request.InterviewId);
+            if (interview == null)
+            {
+                return NotFound(new { message = "Interview record not found." });
+            }
+
+            interview.AI_Questions = request.QuestionsJson;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "AI Questions saved successfully to interview record.", questionsJson = interview.AI_Questions });
+        }
+
         [HttpPost("hiring-decision")]
         [Authorize(Roles = "Recruiter,Admin")]
         public async Task<IActionResult> GenerateHiringDecision([FromBody] GenerateQuestionsRequest request)
@@ -297,6 +318,108 @@ System Overview Statistics:
             }
         }
 
+        [HttpPost("generate-offer-letter")]
+        [Authorize(Roles = "Recruiter,Admin")]
+        public async Task<IActionResult> GenerateOfferLetter([FromBody] GenerateQuestionsRequest request)
+        {
+            if (request == null || request.ApplicationId <= 0)
+            {
+                return BadRequest(new { message = "Valid ApplicationId is required." });
+            }
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .ThenInclude(j => j!.Company)
+                .Include(a => a.Candidate)
+                .FirstOrDefaultAsync(a => a.Id == request.ApplicationId);
+
+            if (application == null || application.Job == null)
+            {
+                return NotFound(new { message = "Application or associated job record not found." });
+            }
+
+            string candidateName = application.Candidate?.FullName ?? "Valued Candidate";
+            string jobTitle = application.Job.Title ?? "Position";
+            string companyName = application.Job.Company?.Name ?? application.Job.CompanyName ?? "Enterprise Organization";
+            string salaryRange = string.IsNullOrEmpty(application.Job.SalaryRange) ? "Competitive Market Compensation" : application.Job.SalaryRange;
+            string location = string.IsNullOrEmpty(application.Job.Location) ? "Corporate Headquarters / Remote" : application.Job.Location;
+            string jobType = application.Job.JobType ?? "FullTime";
+            string requirements = application.Job.Requirements ?? string.Empty;
+
+            try
+            {
+                string offerLetterContent = await _geminiService.GenerateOfferLetterAsync(
+                    candidateName,
+                    jobTitle,
+                    companyName,
+                    salaryRange,
+                    location,
+                    jobType,
+                    requirements
+                );
+
+                return Ok(new { offerLetterContent });
+            }
+            catch (Exception)
+            {
+                return Ok(new { offerLetterContent = $"CONFIDENTIAL OFFER LETTER\n\nDate: {DateTime.UtcNow:MMMM dd, yyyy}\n\nTo: {candidateName}\n\nSubject: Job Offer - {jobTitle} at {companyName}\n\nDear {candidateName},\n\nWe are pleased to offer you the position of '{jobTitle}' at {companyName}.\n\nCompensation Package: {salaryRange}\nLocation: {location}\nEmployment Type: {jobType}\n\nPlease review and confirm your acceptance within 7 calendar days.\n\nSincerely,\nHR Talent Acquisition Team\n{companyName}" });
+            }
+        }
+
+        [HttpPost("generate-onboarding")]
+        [Authorize(Roles = "Recruiter,Admin,Candidate")]
+        public async Task<IActionResult> GenerateOnboarding([FromBody] GenerateQuestionsRequest request)
+        {
+            if (request == null || request.ApplicationId <= 0)
+            {
+                return BadRequest(new { message = "Valid ApplicationId is required." });
+            }
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .ThenInclude(j => j!.Company)
+                .Include(a => a.Candidate)
+                .FirstOrDefaultAsync(a => a.Id == request.ApplicationId);
+
+            if (application == null || application.Job == null)
+            {
+                return NotFound(new { message = "Application or associated job record not found." });
+            }
+
+            string candidateName = application.Candidate?.FullName ?? "Valued Team Member";
+            string jobTitle = application.Job.Title ?? "Position";
+            string companyName = application.Job.Company?.Name ?? application.Job.CompanyName ?? "Enterprise Organization";
+            string department = "Engineering & Technology";
+            string location = string.IsNullOrEmpty(application.Job.Location) ? "Corporate HQ / Remote" : application.Job.Location;
+
+            try
+            {
+                var result = await _geminiService.GenerateOnboardingPlanAsync(
+                    candidateName,
+                    jobTitle,
+                    companyName,
+                    department,
+                    location
+                );
+
+                return Ok(result);
+            }
+            catch (Exception)
+            {
+                return Ok(new OnboardingPlanResult
+                {
+                    WelcomeMessage = $"Welcome to {companyName}, {candidateName}! We are thrilled to have you join our team as a {jobTitle}.",
+                    FirstDayAgenda = new[] { "09:30 AM - Orientation", "11:00 AM - Team Welcome", "02:00 PM - Workstation Setup" },
+                    Checklist = new[] { "Upload signed offer letter", "Submit ID verification", "Complete direct deposit form" },
+                    LearningPlan30Days = new[] { "Architecture walkthrough", "CI/CD setup", "Ship first minor feature" },
+                    LearningPlan60Days = new[] { "Primary feature delivery", "Sprint planning participation" },
+                    LearningPlan90Days = new[] { "Architectural module ownership", "PR code reviews" },
+                    ManagerNote = $"Hi {candidateName}, welcome aboard! Looking forward to working with you.",
+                    FAQs = new[] { "Q: Dress code? A: Smart casual.", "Q: Workstation access? A: Credentials emailed prior to Day 1." }
+                });
+            }
+        }
+
         private int GetUserId()
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -312,5 +435,11 @@ System Overview Statistics:
             var claim = User.FindFirst(ClaimTypes.Role);
             return claim?.Value ?? "Candidate";
         }
+    }
+
+    public class SaveQuestionsRequest
+    {
+        public int InterviewId { get; set; }
+        public string QuestionsJson { get; set; } = string.Empty;
     }
 }

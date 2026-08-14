@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiRequest } from '../api';
-import { Mail, Lock, User as UserIcon, UserPlus, AlertCircle, Briefcase, GraduationCap, Phone, CheckCircle } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, UserPlus, AlertCircle, Briefcase, GraduationCap, Phone, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { t } from '../i18n';
 
 export const Register: React.FC = () => {
@@ -11,6 +11,7 @@ export const Register: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [mobileNumber, setMobileNumber] = useState('');
   
   // CAPTCHA verification states
@@ -32,7 +33,7 @@ export const Register: React.FC = () => {
     generateCaptcha();
   }, []);
   
-  // Custom Naukri Selectors
+  // Custom Role Selectors
   const [role, setRole] = useState<'Candidate' | 'Recruiter'>('Candidate');
   const [workStatus, setWorkStatus] = useState<'experienced' | 'fresher'>('experienced');
   const [whatsappConsent, setWhatsappConsent] = useState(true);
@@ -64,61 +65,53 @@ export const Register: React.FC = () => {
     if (apiError) {
       setError(apiError);
     } else {
-      // If candidate is a Fresher, we can initialize their profile with 0 years exp
-      if (role === 'Candidate') {
-        const user = { email, password };
-        // Auto sign-in or redirect to login
-        navigate('/login', { state: { registered: true } });
-      } else {
-        navigate('/login', { state: { registered: true } });
-      }
+      navigate('/login', { state: { registered: true } });
     }
   };
 
   return (
     <div style={styles.container}>
-      <div className="glass-panel" style={styles.mainLayout}>
+      <div style={styles.mainLayout}>
         
-        {/* LEFT COLUMN: NAUKRI VAL-PROP CARD */}
+        {/* LEFT COLUMN: ENTERPRISE VALUE PROP */}
         <div style={styles.leftValProp}>
           <div style={styles.valIllustrationContainer}>
             <div style={styles.vectorCircle}>
-              <UserIcon size={52} color="#00f2fe" style={{ filter: 'drop-shadow(0 0 10px rgba(0, 242, 254, 0.4))' }} />
+              <UserIcon size={44} color="#2563EB" />
             </div>
-            <div style={styles.decorativeBlob}></div>
           </div>
           
-          <h3 style={styles.valTitle}>On registering, you can</h3>
+          <h3 style={styles.valTitle}>On registering, you can:</h3>
           
           <ul style={styles.valList}>
             <li style={styles.valItem}>
-              <CheckCircle size={16} color="#34d399" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>Build your profile and let recruiters find you</span>
+              <CheckCircle size={18} color="#16A34A" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <span>Build your profile and let enterprise recruiters find you</span>
             </li>
             <li style={styles.valItem}>
-              <CheckCircle size={16} color="#34d399" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>Get job postings delivered right to your email</span>
+              <CheckCircle size={18} color="#16A34A" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <span>Get AI match recommendations delivered to your dashboard</span>
             </li>
             <li style={styles.valItem}>
-              <CheckCircle size={16} color="#34d399" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>Find a job and grow your career</span>
+              <CheckCircle size={18} color="#16A34A" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <span>Receive interview invites and official AI offer packages</span>
             </li>
           </ul>
         </div>
 
         {/* VERTICAL DIVIDER */}
-        <div style={styles.verticalDivider}></div>
+        <div style={styles.verticalDivider} />
 
         {/* RIGHT COLUMN: REGISTRATION FORM */}
         <div style={styles.rightFormColumn}>
           <div style={styles.header}>
-            <h2 style={styles.title} className="text-gradient">Create your account</h2>
-            <p style={styles.subtitle}>Join JobAI to explore top employment roles</p>
+            <h2 style={styles.title}>Create your account</h2>
+            <p style={styles.subtitle}>Join RecruitNexus to explore top enterprise opportunities</p>
           </div>
 
           {error && (
-            <div style={styles.errorAlert} className="badge-red">
-              <AlertCircle size={16} />
+            <div style={styles.errorAlert}>
+              <AlertCircle size={18} />
               <span>{error}</span>
             </div>
           )}
@@ -132,9 +125,9 @@ export const Register: React.FC = () => {
                   type="button"
                   style={{
                     ...styles.roleButton,
-                    borderColor: role === 'Candidate' ? '#00f2fe' : 'rgba(255,255,255,0.06)',
-                    background: role === 'Candidate' ? 'rgba(0, 242, 254, 0.08)' : 'rgba(255,255,255,0.02)',
-                    color: role === 'Candidate' ? '#00f2fe' : '#94a3b8',
+                    borderColor: role === 'Candidate' ? '#2563EB' : '#E5E7EB',
+                    background: role === 'Candidate' ? '#EFF6FF' : '#FFFFFF',
+                    color: role === 'Candidate' ? '#2563EB' : '#4B5563',
                   }}
                   onClick={() => setRole('Candidate')}
                 >
@@ -144,13 +137,13 @@ export const Register: React.FC = () => {
                   type="button"
                   style={{
                     ...styles.roleButton,
-                    borderColor: role === 'Recruiter' ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
-                    background: role === 'Recruiter' ? 'rgba(139, 92, 246, 0.08)' : 'rgba(255,255,255,0.02)',
-                    color: role === 'Recruiter' ? '#8b5cf6' : '#94a3b8',
+                    borderColor: role === 'Recruiter' ? '#2563EB' : '#E5E7EB',
+                    background: role === 'Recruiter' ? '#EFF6FF' : '#FFFFFF',
+                    color: role === 'Recruiter' ? '#2563EB' : '#4B5563',
                   }}
                   onClick={() => setRole('Recruiter')}
                 >
-                  <span>Recruiter</span>
+                  <span>Employer / Recruiter</span>
                 </button>
               </div>
             </div>
@@ -162,10 +155,10 @@ export const Register: React.FC = () => {
                 type="text"
                 required
                 className="glass-input"
-                placeholder="What is your name?"
+                placeholder="What is your full name?"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                style={styles.formInput}
+                style={styles.fieldInput}
               />
             </div>
 
@@ -176,33 +169,43 @@ export const Register: React.FC = () => {
                 type="email"
                 required
                 className="glass-input"
-                placeholder="Tell us your Email ID"
+                placeholder="Tell us your work or personal Email ID"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={styles.formInput}
+                style={styles.fieldInput}
               />
-              <span style={styles.subLabel}>We'll send relevant jobs and updates to this email</span>
+              <span style={styles.subLabel}>We'll send job updates and interview invites to this email</span>
             </div>
 
             {/* Password */}
             <div style={styles.formGroup}>
               <label style={styles.label}>Password*</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                className="glass-input"
-                placeholder="(Minimum 6 characters)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={styles.formInput}
-              />
+              <div style={styles.inputWrapper}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  className="glass-input"
+                  placeholder="Minimum 6 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ ...styles.fieldInput, paddingRight: '48px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={styles.eyeToggleBtn}
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} color="#6B7280" /> : <Eye size={18} color="#6B7280" />}
+                </button>
+              </div>
               <span style={styles.subLabel}>This helps your account stay protected</span>
             </div>
 
             {/* Mobile Number */}
             <div style={styles.formGroup}>
-              <label style={styles.label}>Mobile number*</label>
+              <label style={styles.label}>Mobile Number*</label>
               <div style={styles.phoneInputRow}>
                 <span style={styles.phonePrefix}>+91</span>
                 <input
@@ -210,32 +213,32 @@ export const Register: React.FC = () => {
                   required
                   pattern="[0-9]{10}"
                   className="glass-input"
-                  placeholder="Enter your mobile number"
+                  placeholder="10-digit mobile number"
                   value={mobileNumber}
                   onChange={(e) => setMobileNumber(e.target.value)}
-                  style={{ ...styles.formInput, flex: 1 }}
+                  style={{ ...styles.fieldInput, flex: 1 }}
                 />
               </div>
               <span style={styles.subLabel}>Recruiters will contact you on this number</span>
             </div>
 
-            {/* Work Status (Only visible for Candidate job seeker role) */}
+            {/* Work Status (Candidate Only) */}
             {role === 'Candidate' && (
               <div style={styles.formGroup}>
-                <label style={styles.label}>Work status*</label>
+                <label style={styles.label}>Work Status*</label>
                 <div style={styles.statusCardsGrid}>
                   <div
                     onClick={() => setWorkStatus('experienced')}
                     style={{
                       ...styles.statusCard,
-                      borderColor: workStatus === 'experienced' ? '#00f2fe' : 'rgba(255,255,255,0.06)',
-                      background: workStatus === 'experienced' ? 'rgba(0, 242, 254, 0.04)' : 'rgba(255,255,255,0.01)',
+                      borderColor: workStatus === 'experienced' ? '#2563EB' : '#E5E7EB',
+                      background: workStatus === 'experienced' ? '#EFF6FF' : '#FFFFFF',
                     }}
                   >
-                    <Briefcase size={20} color={workStatus === 'experienced' ? '#00f2fe' : '#64748b'} />
+                    <Briefcase size={20} color={workStatus === 'experienced' ? '#2563EB' : '#6B7280'} />
                     <div>
                       <strong style={styles.statusCardTitle}>I'm experienced</strong>
-                      <span style={styles.statusCardDesc}>I have work experience (excluding internships)</span>
+                      <span style={styles.statusCardDesc}>I have work experience</span>
                     </div>
                   </div>
 
@@ -243,14 +246,14 @@ export const Register: React.FC = () => {
                     onClick={() => setWorkStatus('fresher')}
                     style={{
                       ...styles.statusCard,
-                      borderColor: workStatus === 'fresher' ? '#00f2fe' : 'rgba(255,255,255,0.06)',
-                      background: workStatus === 'fresher' ? 'rgba(0, 242, 254, 0.04)' : 'rgba(255,255,255,0.01)',
+                      borderColor: workStatus === 'fresher' ? '#2563EB' : '#E5E7EB',
+                      background: workStatus === 'fresher' ? '#EFF6FF' : '#FFFFFF',
                     }}
                   >
-                    <GraduationCap size={20} color={workStatus === 'fresher' ? '#00f2fe' : '#64748b'} />
+                    <GraduationCap size={20} color={workStatus === 'fresher' ? '#2563EB' : '#6B7280'} />
                     <div>
                       <strong style={styles.statusCardTitle}>I'm a fresher</strong>
-                      <span style={styles.statusCardDesc}>I am a student/ Haven't worked after graduation</span>
+                      <span style={styles.statusCardDesc}>I am a recent student / graduate</span>
                     </div>
                   </div>
                 </div>
@@ -267,7 +270,7 @@ export const Register: React.FC = () => {
                 style={styles.checkboxInput}
               />
               <label htmlFor="whatsapp-consent" style={styles.checkboxLabel}>
-                Send me important updates & promotions via SMS, email, and WhatsApp
+                Send me important updates and job notifications via Email & WhatsApp
               </label>
             </div>
 
@@ -281,11 +284,11 @@ export const Register: React.FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="Enter answer"
+                  placeholder="Answer"
                   value={captchaInput}
                   onChange={(e) => setCaptchaInput(e.target.value)}
                   className="glass-input"
-                  style={{ ...styles.formInput, flex: 1 }}
+                  style={{ ...styles.fieldInput, paddingLeft: '16px', flex: 1 }}
                 />
                 <button
                   type="button"
@@ -312,7 +315,7 @@ export const Register: React.FC = () => {
           </p>
 
           <span style={styles.disclaimerText}>
-            By clicking Register, you agree to the Terms and Conditions & Privacy Policy of JobAI.com
+            By clicking Register, you agree to the Terms and Conditions & Privacy Policy of RecruitNexus.com
           </span>
         </div>
 
@@ -326,59 +329,50 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 'calc(100vh - 120px)',
+    minHeight: 'calc(100vh - 160px)',
     padding: '40px 20px',
+    background: '#F8FAFC',
   },
   mainLayout: {
     display: 'flex',
     width: '100%',
-    maxWidth: '920px',
-    borderRadius: '24px',
+    maxWidth: '960px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '16px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
     overflow: 'hidden',
     flexDirection: 'row',
   },
   leftValProp: {
     flex: '1 1 320px',
-    padding: '40px',
+    padding: '44px 36px',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
-    background: 'rgba(255, 255, 255, 0.01)',
+    background: '#F8FAFC',
+    borderRight: '1px solid #E5E7EB',
   },
   valIllustrationContainer: {
-    position: 'relative',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    height: '140px',
     marginBottom: '24px',
   },
   vectorCircle: {
-    width: '100px',
-    height: '100px',
+    width: '80px',
+    height: '80px',
     borderRadius: '50%',
-    background: 'rgba(0, 242, 254, 0.04)',
-    border: '1px solid rgba(0, 242, 254, 0.1)',
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
-  },
-  decorativeBlob: {
-    position: 'absolute',
-    width: '60px',
-    height: '60px',
-    borderRadius: '50%',
-    background: 'rgba(139, 92, 246, 0.06)',
-    top: '15px',
-    left: '80px',
-    filter: 'blur(5px)',
-    zIndex: 1,
   },
   valTitle: {
-    fontSize: '1.2rem',
-    fontWeight: '800',
-    color: '#fff',
+    fontSize: '1.25rem',
+    fontWeight: 800,
+    color: '#111827',
     marginBottom: '20px',
     textAlign: 'center',
   },
@@ -393,46 +387,51 @@ const styles: Record<string, React.CSSProperties> = {
   valItem: {
     display: 'flex',
     gap: '12px',
-    fontSize: '0.85rem',
-    color: '#cbd5e1',
-    lineHeight: '1.4',
+    fontSize: '0.88rem',
+    color: '#374151',
+    lineHeight: 1.5,
     textAlign: 'left',
   },
   verticalDivider: {
     width: '1px',
-    background: 'rgba(255, 255, 255, 0.04)',
+    background: '#E5E7EB',
     alignSelf: 'stretch',
   },
   rightFormColumn: {
     flex: '1.5 1 540px',
-    padding: '40px 48px',
+    padding: '44px 48px',
     textAlign: 'left',
   },
   header: {
     marginBottom: '28px',
   },
   title: {
-    fontSize: '1.65rem',
-    fontWeight: '800',
+    fontSize: '1.85rem',
+    fontWeight: 800,
     marginBottom: '6px',
+    color: '#111827',
+    letterSpacing: '-0.5px',
   },
   subtitle: {
-    fontSize: '0.85rem',
-    color: '#94a3b8',
+    fontSize: '0.92rem',
+    color: '#4B5563',
   },
   errorAlert: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '10px 14px',
-    borderRadius: '8px',
+    gap: '10px',
+    padding: '12px 16px',
+    borderRadius: '10px',
     marginBottom: '24px',
-    fontSize: '0.8rem',
+    fontSize: '0.88rem',
+    background: '#FEE2E2',
+    color: '#DC2626',
+    border: '1px solid #FCA5A5',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '18px',
+    gap: '20px',
   },
   formGroup: {
     display: 'flex',
@@ -440,18 +439,42 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '6px',
   },
   label: {
-    fontSize: '0.85rem',
-    fontWeight: '700',
-    color: '#e2e8f0',
+    fontSize: '0.88rem',
+    fontWeight: 600,
+    color: '#374151',
   },
   subLabel: {
-    fontSize: '0.72rem',
-    color: '#64748b',
+    fontSize: '0.75rem',
+    color: '#6B7280',
     marginTop: '2px',
   },
-  formInput: {
-    padding: '10px 14px',
-    fontSize: '0.9rem',
+  fieldInput: {
+    height: '52px',
+    borderRadius: '10px',
+    border: '1px solid #D1D5DB',
+    paddingLeft: '16px',
+    paddingRight: '16px',
+    fontSize: '0.95rem',
+    color: '#111827',
+    background: '#FFFFFF',
+    width: '100%',
+  },
+  inputWrapper: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  eyeToggleBtn: {
+    position: 'absolute',
+    right: '12px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '6px',
+    zIndex: 2,
   },
   phoneInputRow: {
     display: 'flex',
@@ -461,12 +484,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'rgba(255,255,255,0.02)',
-    border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: '8px',
-    padding: '0 14px',
-    fontSize: '0.9rem',
-    color: '#94a3b8',
+    background: '#F8FAFC',
+    border: '1px solid #D1D5DB',
+    borderRadius: '10px',
+    padding: '0 16px',
+    fontSize: '0.95rem',
+    color: '#374151',
+    fontWeight: 600,
   },
   roleContainer: {
     display: 'grid',
@@ -475,23 +499,23 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '4px',
   },
   roleButton: {
-    padding: '10px',
-    borderRadius: '8px',
+    padding: '12px',
+    borderRadius: '10px',
     border: '1px solid',
     cursor: 'pointer',
-    fontWeight: '700',
-    fontSize: '0.85rem',
+    fontWeight: 600,
+    fontSize: '0.9rem',
     transition: 'all 0.2s',
   },
   statusCardsGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '16px',
+    gap: '14px',
     marginTop: '4px',
   },
   statusCard: {
     border: '1px solid',
-    borderRadius: '12px',
+    borderRadius: '10px',
     padding: '14px',
     display: 'flex',
     gap: '10px',
@@ -502,15 +526,15 @@ const styles: Record<string, React.CSSProperties> = {
   statusCardTitle: {
     display: 'block',
     fontSize: '0.85rem',
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: 700,
+    color: '#111827',
     marginBottom: '2px',
   },
   statusCardDesc: {
     display: 'block',
-    fontSize: '0.7rem',
-    color: '#64748b',
-    lineHeight: '1.3',
+    fontSize: '0.75rem',
+    color: '#6B7280',
+    lineHeight: 1.3,
   },
   checkboxGroup: {
     display: 'flex',
@@ -519,30 +543,34 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '6px',
   },
   checkboxInput: {
-    marginTop: '2px',
+    marginTop: '3px',
     cursor: 'pointer',
   },
   checkboxLabel: {
-    fontSize: '0.78rem',
-    color: '#94a3b8',
-    lineHeight: '1.4',
+    fontSize: '0.8rem',
+    color: '#4B5563',
+    lineHeight: 1.4,
     cursor: 'pointer',
   },
   submitBtn: {
-    marginTop: '10px',
+    height: '50px',
+    borderRadius: '10px',
+    fontSize: '1rem',
+    fontWeight: 600,
     justifyContent: 'center',
-    padding: '12px',
+    marginTop: '10px',
+    width: '100%',
   },
   footerText: {
     textAlign: 'center',
-    fontSize: '0.85rem',
-    color: '#64748b',
-    marginTop: '20px',
+    fontSize: '0.9rem',
+    color: '#6B7280',
+    marginTop: '24px',
   },
   footerLink: {
-    color: '#00f2fe',
+    color: '#2563EB',
     textDecoration: 'none',
-    fontWeight: '700',
+    fontWeight: 600,
   },
   captchaRow: {
     display: 'flex',
@@ -550,39 +578,40 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
   },
   captchaBox: {
-    background: 'var(--glass-bg-override, rgba(255, 255, 255, 0.03))',
-    border: '1px solid var(--glass-border)',
-    borderRadius: '8px',
-    padding: '10px 20px',
+    background: '#F8FAFC',
+    border: '1px solid #6B7280',
+    borderRadius: '10px',
+    height: '52px',
+    padding: '0 16px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: '100px',
   },
   captchaExpression: {
-    fontSize: '1rem',
+    fontSize: '1.05rem',
     fontWeight: 'bold',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
     letterSpacing: '1px',
     fontFamily: "'Courier New', monospace",
   },
   captchaRefreshBtn: {
-    background: 'rgba(255,255,255,0.02)',
-    border: '1px solid var(--glass-border)',
-    borderRadius: '8px',
-    padding: '10px 14px',
-    fontSize: '0.8rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    background: '#FFFFFF',
+    border: '1px solid #D1D5DB',
+    borderRadius: '10px',
+    height: '52px',
+    padding: '0 16px',
+    fontSize: '0.85rem',
+    color: '#374151',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    outline: 'none',
+    fontWeight: 500,
   },
   disclaimerText: {
-    fontSize: '0.68rem',
-    color: '#475569',
+    fontSize: '0.72rem',
+    color: '#6B7280',
     textAlign: 'center',
     display: 'block',
-    marginTop: '12px',
-    lineHeight: '1.3',
+    marginTop: '14px',
+    lineHeight: 1.3,
   }
 };

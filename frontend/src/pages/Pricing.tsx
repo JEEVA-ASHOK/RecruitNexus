@@ -65,7 +65,7 @@ export const Pricing: React.FC = () => {
 
         {/* Pricing Toggle */}
         <div style={styles.toggleContainer}>
-          <span style={{ ...styles.toggleLabel, color: !isYearly ? '#00f2fe' : '#64748b' }}>Monthly</span>
+          <span style={{ ...styles.toggleLabel, color: !isYearly ? '#2563EB' : '#4B5563' }}>Monthly</span>
           <button 
             onClick={() => setIsYearly(!isYearly)} 
             style={styles.toggleBtn}
@@ -73,10 +73,10 @@ export const Pricing: React.FC = () => {
             <div style={{
               ...styles.toggleCircle,
               transform: isYearly ? 'translateX(24px)' : 'translateX(0px)',
-              backgroundColor: isYearly ? '#8b5cf6' : '#00f2fe',
+              backgroundColor: '#2563EB',
             }} />
           </button>
-          <span style={{ ...styles.toggleLabel, color: isYearly ? '#8b5cf6' : '#64748b' }}>
+          <span style={{ ...styles.toggleLabel, color: isYearly ? '#2563EB' : '#4B5563' }}>
             Yearly <span style={styles.discountBadge}>Save 20%</span>
           </span>
         </div>
@@ -92,14 +92,13 @@ export const Pricing: React.FC = () => {
               className="glass-panel" 
               style={{
                 ...styles.card,
-                borderColor: p.recommended ? 'rgba(0, 242, 254, 0.3)' : 'rgba(255,255,255,0.06)',
-                boxShadow: p.recommended ? '0 0 30px rgba(0, 242, 254, 0.1)' : '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+                borderColor: p.recommended ? '#2563EB' : '#E5E7EB',
+                boxShadow: p.recommended ? '0 4px 12px rgba(37, 99, 235, 0.12)' : 'var(--shadow-card)'
               }}
             >
               {p.recommended && (
                 <div style={styles.recommendedBadge}>
-                  <Sparkles size={10} color="#000" />
-                  <span>MOST POPULAR</span>
+                  <Sparkles size={12} /> RECOMMENDED
                 </div>
               )}
 
@@ -107,33 +106,26 @@ export const Pricing: React.FC = () => {
                 <h3 style={styles.planName}>{p.name}</h3>
                 <div style={styles.priceRow}>
                   <span style={styles.currencySymbol}>₹</span>
-                  <span style={styles.price}>{price.toLocaleString('en-IN')}</span>
-                  <span style={styles.pricePeriod}>/{isYearly ? 'yr' : 'mo'}</span>
+                  <span style={styles.price}>{price.toLocaleString()}</span>
+                  <span style={styles.pricePeriod}>/month</span>
                 </div>
-                {isYearly && p.monthlyPrice > 0 && (
-                  <span style={styles.yearlyBillingNote}>
-                    Billed annually (₹{(p.yearlyPrice * 12).toLocaleString('en-IN')}/year)
-                  </span>
-                )}
+                <span style={styles.yearlyBillingNote}>
+                  {isYearly ? 'Billed annually' : 'Billed monthly'}
+                </span>
+
+                <ul style={styles.featuresList}>
+                  {p.features.map((f, fIdx) => (
+                    <li key={fIdx} style={styles.featureItem}>
+                      <Check size={16} color="#16A34A" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              <ul style={styles.featuresList}>
-                {p.features.map((f, i) => (
-                  <li key={i} style={styles.featureItem}>
-                    <Check size={14} color="#00f2fe" style={{ flexShrink: 0 }} />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-
               <button 
-                onClick={() => alert(`Redirecting to subscribe for ${p.name}...`)}
-                style={{
-                  ...styles.planBtn,
-                  background: p.recommended ? 'var(--accent-gradient)' : 'rgba(255,255,255,0.02)',
-                  color: p.recommended ? '#0b0d19' : '#fff',
-                  border: p.recommended ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                }}
+                className={p.recommended ? 'btn-primary' : 'btn-secondary'}
+                style={styles.planBtn}
               >
                 {p.buttonText}
               </button>
@@ -142,13 +134,14 @@ export const Pricing: React.FC = () => {
         })}
       </div>
 
+      {/* Enterprise SLA Guarantee Banner */}
       <div className="glass-panel" style={styles.guaranteeBox}>
-        <ShieldCheck size={24} color="#34d399" />
+        <ShieldCheck size={32} color="#2563EB" />
         <div>
-          <h4 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 'bold', marginBottom: '4px' }}>
-            100% Risk-Free Guarantee
+          <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: '#111827', fontWeight: '700' }}>
+            14-Day Money-Back Guarantee
           </h4>
-          <p style={{ color: '#64748b', fontSize: '0.8rem', lineHeight: '1.4' }}>
+          <p style={{ color: '#4B5563', fontSize: '0.88rem', lineHeight: '1.4', margin: 0 }}>
             Try any of our premium plans free for 14 days. If you are not completely satisfied, cancel your subscription at any time with no questions asked.
           </p>
         </div>
@@ -172,10 +165,11 @@ const styles = {
     fontWeight: '800',
     marginBottom: '10px',
     letterSpacing: '-0.5px',
+    color: '#111827',
   },
   subtitle: {
     fontSize: '1rem',
-    color: '#94a3b8',
+    color: '#4B5563',
     maxWidth: '650px',
     margin: '0 auto',
     marginBottom: '24px',
@@ -184,32 +178,34 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '12px',
-    background: 'rgba(255,255,255,0.02)',
-    border: '1px solid rgba(255,255,255,0.05)',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
     borderRadius: '30px',
     padding: '6px 16px',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
   },
   toggleLabel: {
-    fontSize: '0.82rem',
+    fontSize: '0.88rem',
     fontWeight: '600' as const,
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    transition: 'color 0.2s',
   },
   discountBadge: {
-    background: 'rgba(139, 92, 246, 0.15)',
-    color: '#c084fc',
-    fontSize: '0.65rem',
-    padding: '2px 6px',
+    background: '#EFF6FF',
+    color: '#2563EB',
+    fontSize: '0.7rem',
+    padding: '2px 8px',
     borderRadius: '10px',
+    fontWeight: '700' as const,
+    border: '1px solid #BFDBFE',
   },
   toggleBtn: {
     width: '48px',
     height: '24px',
     borderRadius: '12px',
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: '#F1F5F9',
+    border: '1px solid #6B7280',
     cursor: 'pointer',
     position: 'relative' as const,
     padding: '2px',
@@ -231,32 +227,33 @@ const styles = {
   },
   card: {
     padding: '30px 24px',
-    borderRadius: '16px',
+    borderRadius: '12px',
     display: 'flex',
     flexDirection: 'column' as const,
     justifyContent: 'space-between',
     position: 'relative' as const,
+    background: '#FFFFFF',
   },
   recommendedBadge: {
     position: 'absolute' as const,
     top: '-12px',
     left: '50%',
     transform: 'translateX(-50%)',
-    background: 'var(--accent-gradient)',
-    color: '#0b0d19',
-    fontSize: '0.65rem',
+    background: '#2563EB',
+    color: '#FFFFFF',
+    fontSize: '0.7rem',
     fontWeight: '800' as const,
-    padding: '4px 10px',
-    borderRadius: '10px',
+    padding: '4px 12px',
+    borderRadius: '12px',
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
-    boxShadow: '0 0 15px rgba(0, 242, 254, 0.3)',
+    boxShadow: '0 2px 4px rgba(37,99,235,0.2)',
   },
   planName: {
-    fontSize: '1.2rem',
+    fontSize: '1.25rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
     marginBottom: '16px',
   },
   priceRow: {
@@ -267,22 +264,22 @@ const styles = {
   currencySymbol: {
     fontSize: '1.45rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
   price: {
     fontSize: '2.5rem',
     fontWeight: '800',
-    color: '#fff',
+    color: '#111827',
     letterSpacing: '-1px',
   },
   pricePeriod: {
-    fontSize: '0.85rem',
-    color: '#64748b',
+    fontSize: '0.88rem',
+    color: '#6B7280',
     marginLeft: '4px',
   },
   yearlyBillingNote: {
-    fontSize: '0.72rem',
-    color: '#64748b',
+    fontSize: '0.78rem',
+    color: '#6B7280',
     display: 'block',
     marginBottom: '16px',
   },
@@ -298,8 +295,8 @@ const styles = {
     display: 'flex',
     alignItems: 'flex-start',
     gap: '10px',
-    fontSize: '0.82rem',
-    color: '#94a3b8',
+    fontSize: '0.88rem',
+    color: '#374151',
     lineHeight: '1.4',
   },
   planBtn: {
@@ -307,7 +304,7 @@ const styles = {
     padding: '12px',
     borderRadius: '8px',
     fontWeight: '600',
-    fontSize: '0.85rem',
+    fontSize: '0.88rem',
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
@@ -316,5 +313,8 @@ const styles = {
     alignItems: 'center',
     gap: '16px',
     padding: '20px 24px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
   }
 };

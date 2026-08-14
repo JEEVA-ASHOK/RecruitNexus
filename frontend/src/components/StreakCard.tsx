@@ -40,7 +40,7 @@ export const StreakCard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px', textAlign: 'center', color: '#64748b' }}>
+      <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px', textAlign: 'center', color: '#6B7280' }}>
         <p>{t('streak.loading')}</p>
       </div>
     );

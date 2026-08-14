@@ -49,7 +49,7 @@ export const Resources: React.FC = () => {
             <div key={r.id} className="glass-panel" style={styles.resourceCard}>
               <div style={styles.resourceHeader}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {r.type === 'Template' ? <FileCode size={18} color="#00f2fe" /> : <GraduationCap size={18} color="#8b5cf6" />}
+                  {r.type === 'Template' ? <FileCode size={18} color="#2563EB" /> : <GraduationCap size={18} color="#8b5cf6" />}
                   <h3 style={styles.resourceTitle}>{r.title}</h3>
                 </div>
                 <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>{r.badge}</span>
@@ -60,7 +60,7 @@ export const Resources: React.FC = () => {
               </div>
 
               <div style={styles.resourceFooter}>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Resource type: {r.type}</span>
+                <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>Resource type: {r.type}</span>
                 <button 
                   onClick={() => {
                     navigator.clipboard.writeText(r.snippet);
@@ -81,20 +81,20 @@ export const Resources: React.FC = () => {
         <div style={styles.sidebar}>
           <div className="glass-panel" style={styles.sideCard}>
             <div style={styles.sideHeader}>
-              <Layers size={18} color="#00f2fe" />
+              <Layers size={18} color="#2563EB" />
               <h3 style={styles.sideTitle}>ATS Optimization Checklist</h3>
             </div>
             <ul style={styles.checkList}>
               <li style={styles.checkItem}>
-                <ChevronRight size={14} color="#00f2fe" />
+                <ChevronRight size={14} color="#2563EB" />
                 <span>Avoid text inside image shapes or canvas elements. ATS bots cannot read drawings.</span>
               </li>
               <li style={styles.checkItem}>
-                <ChevronRight size={14} color="#00f2fe" />
+                <ChevronRight size={14} color="#2563EB" />
                 <span>Place precise keywords corresponding to the recruiter requirements.</span>
               </li>
               <li style={styles.checkItem}>
-                <ChevronRight size={14} color="#00f2fe" />
+                <ChevronRight size={14} color="#2563EB" />
                 <span>Specify total experience years clearly in the profile bio text.</span>
               </li>
             </ul>
@@ -132,7 +132,7 @@ export const Resources: React.FC = () => {
 
 const styles = {
   container: {
-    maxWidth: '1300px',
+    maxWidth: '1200px',
     margin: '0 auto',
     padding: '40px 20px',
   },
@@ -145,10 +145,11 @@ const styles = {
     fontWeight: '800',
     marginBottom: '10px',
     letterSpacing: '-0.5px',
+    color: '#111827',
   },
   subtitle: {
     fontSize: '1rem',
-    color: '#94a3b8',
+    color: '#4B5563',
     maxWidth: '600px',
     margin: '0 auto',
   },
@@ -165,6 +166,10 @@ const styles = {
   },
   resourceCard: {
     padding: '24px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    boxShadow: 'var(--shadow-card)',
   },
   resourceHeader: {
     display: 'flex',
@@ -175,11 +180,11 @@ const styles = {
   resourceTitle: {
     fontSize: '1rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
   codeSnippetBox: {
-    background: '#07080c',
-    border: '1px solid rgba(255,255,255,0.03)',
+    background: '#F8FAFC',
+    border: '1px solid #E5E7EB',
     borderRadius: '8px',
     padding: '16px',
     marginBottom: '16px',
@@ -187,10 +192,10 @@ const styles = {
   },
   preText: {
     fontFamily: "'Courier New', Courier, monospace",
-    fontSize: '0.8rem',
-    color: '#34d399',
+    fontSize: '0.82rem',
+    color: '#1E293B',
     whiteSpace: 'pre-wrap' as const,
-    lineHeight: '1.4',
+    lineHeight: '1.5',
   },
   resourceFooter: {
     display: 'flex',
@@ -204,6 +209,10 @@ const styles = {
   },
   sideCard: {
     padding: '24px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    boxShadow: 'var(--shadow-card)',
   },
   sideHeader: {
     display: 'flex',
@@ -214,7 +223,7 @@ const styles = {
   sideTitle: {
     fontSize: '1.1rem',
     fontWeight: '700',
-    color: '#fff',
+    color: '#111827',
   },
   checkList: {
     listStyleType: 'none',
@@ -225,8 +234,8 @@ const styles = {
   checkItem: {
     display: 'flex',
     gap: '8px',
-    fontSize: '0.82rem',
-    color: '#94a3b8',
+    fontSize: '0.85rem',
+    color: '#374151',
     lineHeight: '1.5',
     alignItems: 'flex-start',
   },
@@ -237,11 +246,11 @@ const styles = {
     gap: '12px',
   },
   listItem: {
-    borderBottom: '1px solid rgba(255,255,255,0.03)',
+    borderBottom: '1px solid #F1F5F9',
     paddingBottom: '8px',
   },
   docLink: {
-    color: '#8b5cf6',
+    color: '#2563EB',
     textDecoration: 'none',
     fontSize: '0.85rem',
     fontWeight: '600',

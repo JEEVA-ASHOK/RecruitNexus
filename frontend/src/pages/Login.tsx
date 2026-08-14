@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiRequest } from '../api';
-import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,30 +52,32 @@ export const Login: React.FC = () => {
 
     if (apiError) {
       setError(apiError);
-      generateCaptcha(); // Regenerate on error
+      generateCaptcha();
     } else {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify({
         userId: data.userId,
+        id: data.userId,
         email: data.email,
         fullName: data.fullName,
         role: data.role,
       }));
+      window.dispatchEvent(new Event('profile-photo-updated'));
       navigate('/dashboard');
     }
   };
 
   return (
     <div style={styles.container}>
-      <div className="glass-panel" style={styles.card}>
+      <div style={styles.card}>
         <div style={styles.header}>
-          <h2 style={styles.title} className="text-glow text-gradient">Welcome Back</h2>
+          <h2 style={styles.title}>Welcome Back</h2>
           <p style={styles.subtitle}>Enter your credentials to access your talent portal</p>
         </div>
 
         {error && (
-          <div style={styles.errorAlert} className="badge-red">
-            <AlertCircle size={16} />
+          <div style={styles.errorAlert}>
+            <AlertCircle size={18} />
             <span>{error}</span>
           </div>
         )}
@@ -90,30 +94,49 @@ export const Login: React.FC = () => {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ paddingLeft: '42px' }}
+                style={styles.fieldInput}
               />
             </div>
           </div>
 
           <div style={styles.formGroup}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label style={styles.label}>Password</label>
-              <Link to="/forgot-password" style={{ fontSize: '0.8rem', color: '#00f2fe', textDecoration: 'none', fontWeight: '600' }}>
-                Forgot Password?
-              </Link>
-            </div>
+            <label style={styles.label}>Password</label>
             <div style={styles.inputWrapper}>
               <Lock size={18} style={styles.inputIcon} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 className="glass-input"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{ paddingLeft: '42px' }}
+                style={{ ...styles.fieldInput, paddingRight: '48px' }}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={styles.eyeToggleBtn}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} color="#6B7280" /> : <Eye size={18} color="#6B7280" />}
+              </button>
             </div>
+          </div>
+
+          {/* Remember Me & Forgot Password Row */}
+          <div style={styles.rememberRow}>
+            <label style={styles.rememberLabel}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={styles.checkboxInput}
+              />
+              <span>Remember Me</span>
+            </label>
+            <Link to="/forgot-password" style={styles.forgotLink}>
+              Forgot Password?
+            </Link>
           </div>
 
           {/* Visual Security CAPTCHA */}
@@ -126,11 +149,11 @@ export const Login: React.FC = () => {
               <input
                 type="text"
                 required
-                placeholder="Enter answer"
+                placeholder="Answer"
                 value={captchaInput}
                 onChange={(e) => setCaptchaInput(e.target.value)}
                 className="glass-input"
-                style={{ flex: 1 }}
+                style={{ ...styles.fieldInput, paddingLeft: '16px', flex: 1 }}
               />
               <button
                 type="button"
@@ -152,7 +175,7 @@ export const Login: React.FC = () => {
         <p style={styles.footerText}>
           Don't have an account?{' '}
           <Link to="/register" style={styles.footerLink}>
-            Create Account
+            Create an Account
           </Link>
         </p>
       </div>
@@ -160,42 +183,51 @@ export const Login: React.FC = () => {
   );
 };
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: { [key: string]: React.CSSProperties } = {
   container: {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 'calc(100vh - 120px)',
-    padding: '24px',
+    minHeight: 'calc(100vh - 160px)',
+    padding: '40px 20px',
+    background: '#F8FAFC',
   },
   card: {
     width: '100%',
-    maxWidth: '440px',
-    padding: '40px',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    maxWidth: '460px',
+    padding: '44px 36px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: '16px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
   },
   header: {
     textAlign: 'center',
     marginBottom: '32px',
   },
   title: {
-    fontSize: '2rem',
-    fontWeight: '800',
+    fontSize: '2.1rem',
+    fontWeight: 800,
     marginBottom: '8px',
+    color: '#111827',
+    letterSpacing: '-0.5px',
   },
   subtitle: {
-    fontSize: '0.9rem',
-    color: '#94a3b8',
-    lineHeight: '1.4',
+    fontSize: '0.95rem',
+    color: '#4B5563',
+    lineHeight: 1.4,
   },
   errorAlert: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '12px 16px',
-    borderRadius: '8px',
+    gap: '10px',
+    padding: '14px 16px',
+    borderRadius: '10px',
     marginBottom: '24px',
-    fontSize: '0.85rem',
+    fontSize: '0.88rem',
+    background: '#FEE2E2',
+    color: '#DC2626',
+    border: '1px solid #FCA5A5',
   },
   form: {
     display: 'flex',
@@ -206,11 +238,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
+    textAlign: 'left',
   },
   label: {
-    fontSize: '0.85rem',
-    fontWeight: '600',
-    color: '#94a3b8',
+    fontSize: '0.88rem',
+    fontWeight: 600,
+    color: '#374151',
   },
   inputWrapper: {
     position: 'relative',
@@ -219,23 +252,80 @@ const styles: Record<string, React.CSSProperties> = {
   },
   inputIcon: {
     position: 'absolute',
-    left: '14px',
-    color: '#64748b',
+    left: '16px',
+    color: '#6B7280',
+    zIndex: 2,
+    pointerEvents: 'none',
+  },
+  fieldInput: {
+    height: '52px',
+    borderRadius: '10px',
+    border: '1px solid #D1D5DB',
+    paddingLeft: '48px',
+    paddingRight: '16px',
+    fontSize: '0.95rem',
+    color: '#111827',
+    background: '#FFFFFF',
+    width: '100%',
+  },
+  eyeToggleBtn: {
+    position: 'absolute',
+    right: '12px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '6px',
+    zIndex: 2,
+  },
+  rememberRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '0.85rem',
+    marginTop: '-4px',
+  },
+  rememberLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    color: '#374151',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  checkboxInput: {
+    cursor: 'pointer',
+    width: '16px',
+    height: '16px',
+    accentColor: '#2563EB',
+  },
+  forgotLink: {
+    fontSize: '0.85rem',
+    color: '#2563EB',
+    textDecoration: 'none',
+    fontWeight: 600,
   },
   submitBtn: {
-    marginTop: '10px',
+    height: '50px',
+    borderRadius: '10px',
+    fontSize: '1rem',
+    fontWeight: 600,
     justifyContent: 'center',
+    marginTop: '6px',
+    width: '100%',
   },
   footerText: {
     textAlign: 'center',
-    fontSize: '0.9rem',
-    color: '#64748b',
-    marginTop: '24px',
+    fontSize: '0.92rem',
+    color: '#6B7280',
+    marginTop: '28px',
   },
   footerLink: {
-    color: '#00f2fe',
+    color: '#2563EB',
     textDecoration: 'none',
-    fontWeight: '600',
+    fontWeight: 600,
   },
   captchaRow: {
     display: 'flex',
@@ -243,10 +333,11 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
   },
   captchaBox: {
-    background: 'var(--glass-bg-override, rgba(255, 255, 255, 0.03))',
-    border: '1px solid var(--glass-border)',
-    borderRadius: '8px',
-    padding: '10px 20px',
+    background: '#F8FAFC',
+    border: '1px solid #6B7280',
+    borderRadius: '10px',
+    height: '52px',
+    padding: '0 16px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -255,19 +346,19 @@ const styles: Record<string, React.CSSProperties> = {
   captchaExpression: {
     fontSize: '1.05rem',
     fontWeight: 'bold',
-    color: 'var(--text-primary, #ffffff)',
+    color: '#111827',
     letterSpacing: '1px',
     fontFamily: "'Courier New', monospace",
   },
   captchaRefreshBtn: {
-    background: 'rgba(255,255,255,0.02)',
-    border: '1px solid var(--glass-border)',
-    borderRadius: '8px',
-    padding: '10px 14px',
-    fontSize: '0.8rem',
-    color: 'var(--text-secondary, #94a3b8)',
+    background: '#FFFFFF',
+    border: '1px solid #D1D5DB',
+    borderRadius: '10px',
+    height: '52px',
+    padding: '0 16px',
+    fontSize: '0.85rem',
+    color: '#374151',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    outline: 'none',
+    fontWeight: 500,
   },
 };
