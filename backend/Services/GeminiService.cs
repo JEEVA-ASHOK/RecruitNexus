@@ -153,20 +153,35 @@ namespace backend.Services
     {
         private readonly HttpClient _httpClient;
         private readonly string? _apiKey;
+        private readonly string _modelName;
         private readonly ILogger<GeminiService> _logger;
+
+        private const string DefaultGeminiModel = "gemini-3.6-flash";
 
         public GeminiService(HttpClient httpClient, IConfiguration configuration, ILogger<GeminiService> logger)
         {
             _httpClient = httpClient;
             _logger = logger;
-            // Get from environment or config
-            _apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") 
-                       ?? configuration["Gemini:ApiKey"];
             
+            // Prioritize IConfiguration (User Secrets / appsettings) before OS environment variables
+            _apiKey = configuration["Gemini:ApiKey"] 
+                       ?? configuration["GEMINI_API_KEY"] 
+                       ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+
+            _modelName = configuration["Gemini:Model"] 
+                          ?? configuration["GEMINI_MODEL"] 
+                          ?? DefaultGeminiModel;
+
             if (string.IsNullOrEmpty(_apiKey))
             {
                 _logger.LogWarning("GEMINI_API_KEY is not configured. AI features will run in mock mode.");
             }
+        }
+
+        private string GetApiUrl(string? overrideModel = null)
+        {
+            string model = string.IsNullOrWhiteSpace(overrideModel) ? _modelName : overrideModel;
+            return $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={_apiKey}";
         }
 
         public async Task<ParsedResumeResult> ParseResumeAsync(string resumeText)
@@ -377,7 +392,7 @@ Do not include any markdown formatting wrappers (like ```json), just return raw 
         private async Task<string> CallGeminiApiAsync(string prompt)
         {
             // We use the gemini-1.5-flash model which is stable and quick
-            string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={_apiKey}";
+            string url = GetApiUrl();
 
             var requestBody = new
             {
@@ -524,7 +539,7 @@ Do not include any markdown formatting wrappers (like ```json), just return raw 
 
             try
             {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={_apiKey}";
+                string url = GetApiUrl();
 
                 var requestBody = new
                 {
@@ -579,7 +594,7 @@ Text to translate:
 
             try
             {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={_apiKey}";
+                string url = GetApiUrl();
 
                 var requestBody = new
                 {
@@ -653,7 +668,7 @@ Return raw JSON strictly adhering to this JSON schema:
 
 Return ONLY valid raw JSON with NO markdown blocks or code wrap tags.";
 
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={_apiKey}";
+                string url = GetApiUrl();
                 var requestBody = new
                 {
                     contents = new[]
@@ -991,7 +1006,7 @@ Return strictly a valid JSON object matching this schema EXACTLY:
                 var jsonPayload = JsonSerializer.Serialize(requestBody);
                 var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-                var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={_apiKey}";
+                var url = GetApiUrl();
                 var response = await _httpClient.PostAsync(url, content);
 
                 if (!response.IsSuccessStatusCode)
@@ -1204,7 +1219,7 @@ Return strictly a valid JSON object matching this schema EXACTLY:
                 var jsonPayload = JsonSerializer.Serialize(requestBody);
                 var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-                var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={_apiKey}";
+                var url = GetApiUrl();
                 var response = await _httpClient.PostAsync(url, content);
 
                 if (!response.IsSuccessStatusCode)

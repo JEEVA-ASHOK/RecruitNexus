@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Clock, ChevronDown, Settings, Check } from 'lucide-react';
+import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Clock, ChevronDown, Settings, Check, UserCheck, FileText } from 'lucide-react';
 import { t } from '../i18n';
 import { apiRequest } from '../api';
 import { NotificationCenter } from './NotificationCenter';
+import { getStoredProfileCompletion } from '../utils/profileCompletion';
 
 export const NavBar: React.FC = () => {
   const navigate = useNavigate();
@@ -29,6 +30,23 @@ export const NavBar: React.FC = () => {
     { name: 'Malayalam', label: 'Malayalam (മലയാളം)' },
     { name: 'Japanese', label: 'Japanese (日本語)' }
   ];
+
+  const [completionPct, setCompletionPct] = useState(75);
+
+  useEffect(() => {
+    const calcScore = () => {
+      const details = getStoredProfileCompletion();
+      setCompletionPct(details.percentage);
+    };
+
+    calcScore();
+    window.addEventListener('personal-info-updated', calcScore);
+    window.addEventListener('profile-photo-updated', calcScore);
+    return () => {
+      window.removeEventListener('personal-info-updated', calcScore);
+      window.removeEventListener('profile-photo-updated', calcScore);
+    };
+  }, [userJson]);
 
   const reloadNavData = () => {
     if (user) {
@@ -215,11 +233,6 @@ export const NavBar: React.FC = () => {
             Pricing
           </Link>
 
-          <div style={styles.dateTimeBadge}>
-            <Clock size={12} color="#6B7280" />
-            <span>{formatDateTime(currentTime)}</span>
-          </div>
-
           {/* USER PROFILE SECTION WITH INTEGRATED LANGUAGE SUBMENU */}
           {user ? (
             <div style={styles.userSection} ref={menuRef}>
@@ -256,17 +269,59 @@ export const NavBar: React.FC = () => {
                     <div style={styles.menuHeader}>
                       <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem' }}>{user.fullName}</span>
                       <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>{user.email}</span>
+                      
+                      {/* Profile Completion Bar */}
+                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #F1F5F9' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 600, color: '#2563EB', marginBottom: '4px' }}>
+                          <span>Profile {completionPct}% complete</span>
+                        </div>
+                        <div style={{ width: '100%', height: '6px', background: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${completionPct}%`, height: '100%', background: '#2563EB', borderRadius: '3px', transition: 'width 0.3s ease' }} />
+                        </div>
+                      </div>
                     </div>
                     
                     <div style={styles.menuDivider} />
+
+                    <div 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        if (location.pathname !== '/dashboard') navigate('/dashboard');
+                        setTimeout(() => {
+                          window.dispatchEvent(new Event('open-personal-info-modal'));
+                        }, 100);
+                      }}
+                      style={styles.menuItem}
+                    >
+                      <UserCheck size={16} color="#2563EB" />
+                      <span>Personal Information</span>
+                    </div>
 
                     <Link 
                       to="/dashboard" 
                       onClick={() => setShowProfileMenu(false)}
                       style={styles.menuItem}
                     >
-                      <LayoutDashboard size={16} color="#4B5563" />
-                      <span>{t('dashboard')}</span>
+                      <Briefcase size={16} color="#4B5563" />
+                      <span>Professional Profile</span>
+                    </Link>
+
+                    <Link 
+                      to="/dashboard" 
+                      onClick={() => setShowProfileMenu(false)}
+                      style={styles.menuItem}
+                    >
+                      <FileText size={16} color="#4B5563" />
+                      <span>Resume & Documents</span>
+                    </Link>
+
+                    <Link 
+                      to="/dashboard" 
+                      onClick={() => setShowProfileMenu(false)}
+                      style={styles.menuItem}
+                    >
+                      <Settings size={16} color="#4B5563" />
+                      <span>Account Settings</span>
                     </Link>
 
                     {/* LANGUAGE SUBMENU TRIGGER */}
@@ -349,7 +404,7 @@ export const NavBar: React.FC = () => {
                 {t('sign_in')}
               </Link>
               <Link to="/register" className="btn-primary" style={styles.getStartedBtn}>
-                {t('get_started')}
+                Get Started
               </Link>
             </div>
           )}

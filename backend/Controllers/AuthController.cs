@@ -146,6 +146,38 @@ namespace backend.Controllers
 
             var token = JwtHelper.GenerateJwtToken(user, _configuration);
 
+            // Send non-blocking login notification email for candidate logins
+            if (user.Role == "Candidate" && !string.IsNullOrWhiteSpace(user.Email))
+            {
+                var loginEmail = user.Email;
+                var fullName = user.FullName;
+                var loginTimeIst = DateTime.UtcNow.AddHours(5).AddMinutes(30).ToString("f");
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var subject = "Security Alert: Successful Login to RecruitNexus";
+                        var body = $@"
+                            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+                                <h2 style='color: #0056b3;'>New Account Login Detected</h2>
+                                <p>Dear {fullName},</p>
+                                <p>Your RecruitNexus candidate account was successfully logged in.</p>
+                                <p><strong>Login Date & Time (IST):</strong> {loginTimeIst}</p>
+                                <p><strong>Security Message:</strong> If this login was authorized by you, no further action is required. If you did not initiate this login, please reset your password immediately.</p>
+                                <br/>
+                                <p>Best regards,<br/><strong>The RecruitNexus Security Team</strong></p>
+                            </div>";
+
+                        await _emailService.SendEmailAsync(loginEmail, subject, body);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[LOGIN EMAIL WARNING] Safe log: Failed to dispatch login notification: {ex.Message}");
+                    }
+                });
+            }
+
             return Ok(new LoginResponse
             {
                 Token = token,
@@ -179,6 +211,16 @@ namespace backend.Controllers
                     catch { }
                 }
 
+                // Default FirstName and LastName from user.FullName if not set in profile
+                var defaultFirstName = "";
+                var defaultLastName = "";
+                if (!string.IsNullOrWhiteSpace(user.FullName))
+                {
+                    var nameParts = user.FullName.Trim().Split(' ', 2);
+                    defaultFirstName = nameParts[0];
+                    if (nameParts.Length > 1) defaultLastName = nameParts[1];
+                }
+
                 return Ok(new UserProfileDto
                 {
                     UserId = user.Id,
@@ -190,7 +232,15 @@ namespace backend.Controllers
                     ExperienceYears = user.Profile?.ExperienceYears ?? 0,
                     ResumePath = user.Profile?.ResumePath ?? "",
                     Education = user.Profile?.Education ?? "",
-                    AI_Summary = user.Profile?.AI_Summary ?? ""
+                    AI_Summary = user.Profile?.AI_Summary ?? "",
+                    FirstName = !string.IsNullOrWhiteSpace(user.Profile?.FirstName) ? user.Profile!.FirstName : defaultFirstName,
+                    LastName = !string.IsNullOrWhiteSpace(user.Profile?.LastName) ? user.Profile!.LastName : defaultLastName,
+                    Gender = user.Profile?.Gender ?? "",
+                    DateOfBirth = user.Profile?.DateOfBirth ?? "",
+                    PhoneNumber = user.Profile?.PhoneNumber ?? "",
+                    Address = user.Profile?.Address ?? "",
+                    City = user.Profile?.City ?? "",
+                    Country = user.Profile?.Country ?? ""
                 });
             }
             catch (UnauthorizedAccessException)
@@ -217,12 +267,103 @@ namespace backend.Controllers
                 profile.ExperienceYears = request.ExperienceYears;
                 profile.Education = request.Education;
 
+                if (request.FirstName != null) profile.FirstName = request.FirstName;
+                if (request.LastName != null) profile.LastName = request.LastName;
+                if (request.Gender != null) profile.Gender = request.Gender;
+                if (request.DateOfBirth != null) profile.DateOfBirth = request.DateOfBirth;
+                if (request.PhoneNumber != null) profile.PhoneNumber = request.PhoneNumber;
+                if (request.Address != null) profile.Address = request.Address;
+                if (request.City != null) profile.City = request.City;
+                if (request.Country != null) profile.Country = request.Country;
+
                 await _context.SaveChangesAsync();
                 return Ok(new { message = "Profile updated successfully." });
             }
             catch (UnauthorizedAccessException)
             {
                 return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+        }
+
+        [HttpPut("profile/personal-info")]
+        [Authorize]
+        public async Task<IActionResult> UpdatePersonalProfile([FromBody] UpdatePersonalProfileRequest request)
+        {
+            try
+            {
+                var userId = GetUserId();
+                var user = await _context.Users
+                    .Include(u => u.Profile)
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+
+                if (user == null) return NotFound(new { message = "User not found." });
+
+                if (user.Profile == null)
+                {
+                    user.Profile = new Profile { UserId = user.Id };
+                    _context.Profiles.Add(user.Profile);
+                }
+
+                var p = user.Profile;
+                if (request.FirstName != null) p.FirstName = request.FirstName.Trim();
+                if (request.LastName != null) p.LastName = request.LastName.Trim();
+                if (request.Gender != null) p.Gender = request.Gender;
+                if (request.DateOfBirth != null) p.DateOfBirth = request.DateOfBirth;
+
+                var phoneVal = request.Phone ?? request.PhoneNumber;
+                if (phoneVal != null) p.PhoneNumber = phoneVal.Trim();
+
+                if (request.Address != null) p.Address = request.Address.Trim();
+                if (request.City != null) p.City = request.City.Trim();
+                if (request.Country != null) p.Country = request.Country.Trim();
+
+                // Keep user.FullName in sync if names are provided
+                if (!string.IsNullOrWhiteSpace(p.FirstName) || !string.IsNullOrWhiteSpace(p.LastName))
+                {
+                    user.FullName = $"{p.FirstName ?? ""} {p.LastName ?? ""}".Trim();
+                }
+
+                await _context.SaveChangesAsync();
+
+                string[] skillsArray = Array.Empty<string>();
+                if (p.Skills != null)
+                {
+                    try
+                    {
+                        skillsArray = JsonSerializer.Deserialize<string[]>(p.Skills) ?? Array.Empty<string>();
+                    }
+                    catch { }
+                }
+
+                return Ok(new UserProfileDto
+                {
+                    UserId = user.Id,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    Role = user.Role,
+                    Bio = p.Bio ?? "",
+                    Skills = skillsArray,
+                    ExperienceYears = p.ExperienceYears,
+                    ResumePath = p.ResumePath ?? "",
+                    Education = p.Education ?? "",
+                    AI_Summary = p.AI_Summary ?? "",
+                    FirstName = p.FirstName ?? "",
+                    LastName = p.LastName ?? "",
+                    Gender = p.Gender ?? "",
+                    DateOfBirth = p.DateOfBirth ?? "",
+                    PhoneNumber = p.PhoneNumber ?? "",
+                    Address = p.Address ?? "",
+                    City = p.City ?? "",
+                    Country = p.Country ?? ""
+                });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = $"Unable to save personal information: {ex.Message}" });
             }
         }
 

@@ -31,10 +31,19 @@ namespace backend.Data
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Companies ADD COLUMN Location VARCHAR(255) DEFAULT '' NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Companies ADD COLUMN About TEXT DEFAULT '' NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN Education VARCHAR(255) DEFAULT '' NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN FirstName VARCHAR(255) NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN LastName VARCHAR(255) NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN Gender VARCHAR(50) NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN DateOfBirth VARCHAR(50) NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN PhoneNumber VARCHAR(50) NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN Address VARCHAR(512) NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN City VARCHAR(255) NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Profiles ADD COLUMN Country VARCHAR(255) NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN CompanyId INT NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN PasswordResetToken VARCHAR(512) NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN ResetTokenExpiry DATETIME NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Jobs ADD COLUMN CompanyId INT NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Jobs ADD COLUMN CompanyName TEXT DEFAULT '' NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Jobs ADD COLUMN ApplicationDeadline DATETIME NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Applications ADD COLUMN CompanyId INT NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Applications ADD COLUMN RecruiterNotes TEXT NULL"); } catch {}
@@ -53,6 +62,8 @@ namespace backend.Data
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Interviews ADD COLUMN ResultStatus VARCHAR(50) DEFAULT 'Pending' NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Interviews ADD COLUMN Feedback TEXT NULL"); } catch {}
             try { context.Database.ExecuteSqlRaw("ALTER TABLE Interviews ADD COLUMN Remarks TEXT NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Interviews ADD COLUMN ReminderSent BOOLEAN DEFAULT 0 NOT NULL"); } catch {}
+            try { context.Database.ExecuteSqlRaw("ALTER TABLE Interviews ADD COLUMN ReminderSent INT DEFAULT 0 NOT NULL"); } catch {}
             try
             {
                 context.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS SavedJobs (Id INT AUTO_INCREMENT PRIMARY KEY, CandidateId INT NOT NULL, JobId INT NOT NULL, SavedAt DATETIME NOT NULL, FOREIGN KEY(CandidateId) REFERENCES Users(Id) ON DELETE CASCADE, FOREIGN KEY(JobId) REFERENCES Jobs(Id) ON DELETE CASCADE)");

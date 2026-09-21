@@ -3,9 +3,25 @@ import { useNavigate, Link } from 'react-router-dom';
 import { apiRequest } from '../api';
 import { 
   Search, MapPin, Briefcase, ArrowUpRight, Sparkles, Bot, 
-  BrainCircuit, FileText, Award, ShieldCheck, CheckCircle2, 
-  ArrowRight, Users, Building, Target, Layers, UserPlus
+  BrainCircuit, FileText, ShieldCheck, 
+  ArrowRight, Building, Target, Layers, UserPlus, 
+  ChevronLeft, ChevronRight, Code, BarChart3, Cloud, Globe, 
+  CheckCircle2, Award, Zap, Users, Calendar, Check
 } from 'lucide-react';
+
+interface Job {
+  id: number;
+  recruiterName: string;
+  title: string;
+  description: string;
+  requirements: string;
+  location: string;
+  jobType: string;
+  salaryRange: string;
+  status: string;
+  createdAt: string;
+  companyName?: string;
+}
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -13,6 +29,11 @@ export const LandingPage: React.FC = () => {
   const [searchWhere, setSearchWhere] = useState('');
   const [selectedExperience, setSelectedExperience] = useState('All');
 
+  // Hero Slideshow state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Platform stats & Featured Jobs state
   const [stats, setStats] = useState<{
     activeJobs: number | null;
     hiringCompanies: number | null;
@@ -21,8 +42,108 @@ export const LandingPage: React.FC = () => {
   } | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
 
+  const [featuredJobs, setFeaturedJobs] = useState<Job[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+
+  const heroSlides = [
+    {
+      badge: 'Discover Opportunities',
+      title: 'Find the Right Opportunity. Build Your Future.',
+      subtitle: 'Connect directly with top enterprise tech companies using AI precision resume matching, compatibility scoring, and automated application tracking.',
+      primaryCta: 'Find Jobs',
+      primaryLink: '/jobs',
+      secondaryCta: 'Get Started',
+      secondaryLink: '/register',
+      accentColor: '#2563EB',
+      gradient: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 50%, #BFDBFE 100%)',
+      cardTitle: 'Senior Full Stack Engineer',
+      cardSubtitle: 'Matched vs Tech Lead Role',
+      matchScore: '94% AI Match',
+      skills: ['React 19', 'TypeScript', 'ASP.NET Core', 'Python'],
+      statusText: 'ATS Verification Passed',
+      statusSub: 'Real-time Skill Alignment',
+      floatingBadge1Title: 'AI Match 94%',
+      floatingBadge1Sub: 'High Skill Alignment',
+      floatingBadge2Title: 'Interview Ready',
+      floatingBadge2Sub: 'Confirmed Schedule'
+    },
+    {
+      badge: 'Enterprise AI Engine',
+      title: 'Smarter Hiring Starts Here. Powered by Gemini AI.',
+      subtitle: 'Match candidate qualifications to job requirements instantly with multi-factor compatibility scoring, skill gap insights, and auto-generated interview questions.',
+      primaryCta: 'Explore Jobs',
+      primaryLink: '/jobs',
+      secondaryCta: 'For Recruiters',
+      secondaryLink: '/register',
+      accentColor: '#0284C7',
+      gradient: 'linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 50%, #BAE6FD 100%)',
+      cardTitle: 'AI Recruitment Engine',
+      cardSubtitle: 'Automated Candidate Ranking',
+      matchScore: 'Gemini 3.6',
+      skills: ['Resume Parsing', 'Skill Extraction', 'Gap Analysis', 'Interview Generator'],
+      statusText: 'Pipeline Automated',
+      statusSub: 'Instant Candidate Screening',
+      floatingBadge1Title: 'Instant Parsing',
+      floatingBadge1Sub: 'Structured PDF Data',
+      floatingBadge2Title: 'AI Question Set',
+      floatingBadge2Sub: 'Tailored Gaps'
+    },
+    {
+      badge: 'Skill-Based Discovery',
+      title: 'Your Skills. Your Opportunity. Matched in Seconds.',
+      subtitle: 'Upload your resume to parse technical stack skills automatically and discover curated roles with real-time application status tracking.',
+      primaryCta: 'Search Roles',
+      primaryLink: '/jobs',
+      secondaryCta: 'View Companies',
+      secondaryLink: '/companies',
+      accentColor: '#7C3AED',
+      gradient: 'linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 50%, #DDD6FE 100%)',
+      cardTitle: 'Verified Candidate Profile',
+      cardSubtitle: 'Skill Stack & Portfolio',
+      matchScore: 'Top 5% Talent',
+      skills: ['Cloud Architecture', 'System Design', 'Docker', 'REST APIs'],
+      statusText: 'Profile 100% Complete',
+      statusSub: 'Direct Employer Sourcing',
+      floatingBadge1Title: 'Skill Verified',
+      floatingBadge1Sub: 'Instant Candidate Badge',
+      floatingBadge2Title: 'Direct Apply',
+      floatingBadge2Sub: 'One-Click Submission'
+    },
+    {
+      badge: 'End-to-End Workflow',
+      title: 'From Application to Interview. One Connected Platform.',
+      subtitle: 'Track real-time status updates, view HR contacts and meeting venues, and prepare using interactive AI technical interview simulations.',
+      primaryCta: 'Join RecruitNexus',
+      primaryLink: '/register',
+      secondaryCta: 'Learn More',
+      secondaryLink: '/resources',
+      accentColor: '#16A34A',
+      gradient: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 50%, #BBF7D0 100%)',
+      cardTitle: 'Interview Coordinator',
+      cardSubtitle: 'Scheduled Round 1 Technical',
+      matchScore: 'Scheduled',
+      skills: ['Google Meet', 'HR Contact Info', 'Venue Address', 'Dress Code'],
+      statusText: 'Calendar Sync Active',
+      statusSub: '24h Email Reminders',
+      floatingBadge1Title: 'Scheduled',
+      floatingBadge1Sub: 'Google Meet / Venue',
+      floatingBadge2Title: 'AI Simulator',
+      floatingBadge2Sub: 'Interactive Practice'
+    }
+  ];
+
+  // Slideshow auto-advance timer
+  useEffect(() => {
+    if (isPaused) return;
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [isPaused, heroSlides.length]);
+
   useEffect(() => {
     fetchPlatformStats();
+    fetchFeaturedJobs();
   }, []);
 
   const fetchPlatformStats = async () => {
@@ -32,9 +153,22 @@ export const LandingPage: React.FC = () => {
         setStats(data);
       }
     } catch {
-      // Fallback handled gracefully in UI
+      // Fallback handled gracefully
     } finally {
       setLoadingStats(false);
+    }
+  };
+
+  const fetchFeaturedJobs = async () => {
+    try {
+      const { data } = await apiRequest('/jobs');
+      if (data && Array.isArray(data)) {
+        setFeaturedJobs(data.slice(0, 6));
+      }
+    } catch {
+      // Fallback handled gracefully
+    } finally {
+      setLoadingJobs(false);
     }
   };
 
@@ -60,296 +194,401 @@ export const LandingPage: React.FC = () => {
     navigate(`/jobs?${params.toString()}`);
   };
 
+  const popularCategories = [
+    { name: 'Software Development', icon: <Code size={24} color="#2563EB" />, count: '1,240+ Openings' },
+    { name: 'AI & Machine Learning', icon: <Bot size={24} color="#0284C7" />, count: '850+ Openings' },
+    { name: 'Data Science & Analytics', icon: <BarChart3 size={24} color="#7C3AED" />, count: '620+ Openings' },
+    { name: 'Full Stack Development', icon: <Globe size={24} color="#16A34A" />, count: '940+ Openings' },
+    { name: 'Cloud & DevOps', icon: <Cloud size={24} color="#EA580C" />, count: '510+ Openings' },
+    { name: 'Testing & QA', icon: <ShieldCheck size={24} color="#DC2626" />, count: '380+ Openings' },
+  ];
+
   const featuredBrands = [
     { name: 'Google', rating: 4.8, jobs: '1,240+ Open Roles', logoColor: '#4285F4' },
     { name: 'Microsoft', rating: 4.7, jobs: '980+ Open Roles', logoColor: '#F25022' },
     { name: 'Amazon', rating: 4.5, jobs: '1,500+ Open Roles', logoColor: '#FF9900' },
     { name: 'Zoho', rating: 4.6, jobs: '420+ Open Roles', logoColor: '#00A859' },
-    { name: 'Wipro', rating: 4.1, jobs: '810+ Open Roles', logoColor: '#8b5cf6' },
+    { name: 'Wipro', rating: 4.1, jobs: '810+ Open Roles', logoColor: '#8B5CF6' },
     { name: 'TCS', rating: 4.2, jobs: '2,100+ Open Roles', logoColor: '#0033A0' },
     { name: 'Flipkart', rating: 4.4, jobs: '350+ Open Roles', logoColor: '#2874F0' },
   ];
 
-  const aiFeatures = [
+  const whyRecruitNexus = [
     {
       icon: <BrainCircuit size={28} color="#2563EB" />,
-      title: 'Gemini Resume Parsing',
-      desc: 'Instant structured extraction of technical skills, work history, and education from candidate PDFs.',
-      tag: 'Day 1 Feature'
+      title: 'AI-Powered Matching',
+      desc: 'Multi-factor compatibility scoring comparing candidate skills directly against job descriptions in real-time.'
     },
     {
-      icon: <Target size={28} color="#2563EB" />,
-      title: 'AI Candidate Ranking',
-      desc: 'Multi-factor compatibility scoring comparing resume qualifications directly against job requirements.',
-      tag: 'Day 3 Feature'
+      icon: <FileText size={28} color="#0284C7" />,
+      title: 'ATS Resume Analysis',
+      desc: 'Gemini AI parsing extracts technical skills, work history, and personalized gap analysis from PDF resumes.'
     },
     {
-      icon: <Bot size={28} color="#2563EB" />,
-      title: 'Interview Question Generator',
-      desc: 'Synthesizes custom technical, behavioral, and situational questions tailored to candidate skill gaps.',
-      tag: 'Day 2 Feature'
+      icon: <Building size={28} color="#7C3AED" />,
+      title: 'Interview Management',
+      desc: 'Automated interview scheduling with HR details, venue address, meeting links, and candidate confirmation.'
     },
     {
-      icon: <Sparkles size={28} color="#2563EB" />,
-      title: 'Hiring Decision Assistant',
-      desc: 'Executive summaries detailing candidate strengths, risks, recommendation status, and confidence scores.',
-      tag: 'Day 5 Feature'
-    },
-    {
-      icon: <FileText size={28} color="#2563EB" />,
-      title: 'AI Offer Letter Generator',
-      desc: 'Automated offer letter drafting with approval workflow, PDF export, and email dispatch.',
-      tag: 'Day 6 Feature'
-    },
-    {
-      icon: <Award size={28} color="#2563EB" />,
-      title: 'Pre-Joining Onboarding Portal',
-      desc: '30-60-90 day success roadmaps, Day 1 orientation agendas, and manager welcome kits.',
-      tag: 'Day 7 Feature'
+      icon: <BarChart3 size={28} color="#16A34A" />,
+      title: 'Recruiter Analytics',
+      desc: 'Real-time hiring pipeline metrics, applicant ranking, decision summaries, and time-to-hire insights.'
     }
   ];
 
-  const candidateFlowSteps = [
-    {
-      step: '01',
-      icon: <UserPlus size={22} color="#2563EB" />,
-      title: 'Create Your Account',
-      desc: 'Register as a candidate and create your RecruitNexus account.'
-    },
-    {
-      step: '02',
-      icon: <FileText size={22} color="#2563EB" />,
-      title: 'Build Your Profile',
-      desc: 'Add your education, technical skills, experience, professional bio, and resume.'
-    },
-    {
-      step: '03',
-      icon: <Search size={22} color="#2563EB" />,
-      title: 'Find the Right Job',
-      desc: 'Search jobs by title, skills, location, and experience level.'
-    },
-    {
-      step: '04',
-      icon: <BrainCircuit size={22} color="#2563EB" />,
-      title: 'Get Your AI Match Score',
-      desc: 'RecruitNexus analyzes your profile and job requirements to show your compatibility score.'
-    },
-    {
-      step: '05',
-      icon: <Briefcase size={22} color="#2563EB" />,
-      title: 'Apply for the Job',
-      desc: 'Review the job details and submit your application directly through RecruitNexus.'
-    },
-    {
-      step: '06',
-      icon: <Layers size={22} color="#2563EB" />,
-      title: 'Track Your Application',
-      desc: 'Monitor your application status from Applied to Reviewing, Interviewing, Selected, or Rejected.'
-    },
-    {
-      step: '07',
-      icon: <Bot size={22} color="#2563EB" />,
-      title: 'Practice With AI Interview Simulator',
-      desc: 'Prepare for interviews using AI-generated questions, answer evaluation, and personalized feedback.'
-    },
-    {
-      step: '08',
-      icon: <Building size={22} color="#2563EB" />,
-      title: 'Attend Your Interview',
-      desc: 'View your interview schedule, HR details, meeting link, venue, reporting time, and required documents.'
-    },
-    {
-      step: '09',
-      icon: <Award size={22} color="#2563EB" />,
-      title: 'Get Hired & Complete Onboarding',
-      desc: 'After selection, complete the pre-joining and onboarding process through RecruitNexus.'
-    }
-  ];
-
-  const workflowSteps = [
-    {
-      step: '01',
-      title: 'Post Open Positions',
-      desc: 'Recruiters create job postings defining key technical requirements, location, and salary ranges.'
-    },
-    {
-      step: '02',
-      title: 'AI Matching & Ranking',
-      desc: 'Our matching engine parses applicant profiles in real-time, ranking top talent with instant compatibility scores.'
-    },
-    {
-      step: '03',
-      title: 'Interview & Onboard',
-      desc: 'Schedule interviews, generate custom question sets, approve offer letters, and deliver pre-joining onboarding kits.'
-    }
-  ];
+  const currentSlideData = heroSlides[currentSlide];
 
   return (
     <div style={styles.pageContainer}>
       
-      {/* 1. HERO SECTION */}
-      <section style={styles.heroSection}>
-        <div style={styles.heroContent}>
-          <div style={styles.heroBadge}>
-            <Sparkles size={14} color="#2563EB" />
-            <span>Next-Generation AI Recruitment System</span>
-          </div>
-          <h1 style={styles.heroTitle}>
-            Find Your Dream Job Faster with AI
-          </h1>
-          <p style={styles.heroSubtitle}>
-            Connect directly with top enterprise tech companies using Gemini AI precision resume parsing, compatibility scoring, and automated application tracking.
-          </p>
-
-          {/* 2. SEARCH BAR CARD */}
-          <form onSubmit={handleSearch} style={styles.searchCard}>
-            <div style={styles.searchGroup}>
-              <label style={styles.searchLabel}>Job Title or Skills</label>
-              <div style={styles.inputWrapper}>
-                <Search size={20} color="#6B7280" />
-                <input
-                  type="text"
-                  placeholder="e.g. Software Engineer, React, Python"
-                  value={searchWhat}
-                  onChange={(e) => setSearchWhat(e.target.value)}
-                  style={styles.searchInput}
-                />
-              </div>
-            </div>
+      {/* 1. HERO SLIDESHOW SECTION */}
+      <section 
+        style={styles.heroWrapper}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+        <div 
+          style={{
+            ...styles.heroSlideCard,
+            background: currentSlideData.gradient,
+          }}
+        >
+          <div style={styles.heroGrid}>
             
-            <div style={styles.searchDivider} />
-
-            <div style={styles.searchGroup}>
-              <label style={styles.searchLabel}>Location</label>
-              <div style={styles.inputWrapper}>
-                <MapPin size={20} color="#6B7280" />
-                <input
-                  type="text"
-                  placeholder="City, state, or Remote"
-                  value={searchWhere}
-                  onChange={(e) => setSearchWhere(e.target.value)}
-                  style={styles.searchInput}
-                />
+            {/* LEFT COLUMN: TEXT CONTENT & ACTIONS */}
+            <div style={styles.heroLeftCol}>
+              <div style={{ ...styles.heroBadge, borderColor: currentSlideData.accentColor }}>
+                <Sparkles size={14} color={currentSlideData.accentColor} />
+                <span style={{ color: currentSlideData.accentColor }}>{currentSlideData.badge}</span>
               </div>
-            </div>
 
-            <div style={styles.searchDivider} />
+              <h1 style={styles.heroTitle}>
+                {currentSlideData.title}
+              </h1>
 
-            <div style={styles.searchGroup}>
-              <label style={styles.searchLabel}>Experience Level</label>
-              <div style={styles.inputWrapper}>
-                <Briefcase size={20} color="#6B7280" />
-                <select
-                  value={selectedExperience}
-                  onChange={(e) => setSelectedExperience(e.target.value)}
-                  style={styles.searchSelect}
+              <p style={styles.heroSubtitle}>
+                {currentSlideData.subtitle}
+              </p>
+
+              <div style={styles.heroActionRow}>
+                <Link 
+                  to={currentSlideData.primaryLink} 
+                  className="btn-primary" 
+                  style={{ ...styles.heroPrimaryBtn, background: currentSlideData.accentColor, borderColor: currentSlideData.accentColor }}
                 >
-                  <option value="All">Any Experience</option>
-                  <option value="0">Fresher (0 years)</option>
-                  <option value="1">1 year</option>
-                  <option value="2">2 years</option>
-                  <option value="3">3 years</option>
-                  <option value="5">5 years</option>
-                  <option value="8">8+ years</option>
-                </select>
+                  <span>{currentSlideData.primaryCta}</span>
+                  <ArrowRight size={18} />
+                </Link>
+
+                <Link 
+                  to={currentSlideData.secondaryLink} 
+                  className="btn-secondary" 
+                  style={styles.heroSecondaryBtn}
+                >
+                  <span>{currentSlideData.secondaryCta}</span>
+                </Link>
               </div>
             </div>
 
-            <button type="submit" className="btn-primary" style={styles.searchBtn}>
-              <span>Search Jobs</span>
-              <ArrowRight size={18} />
-            </button>
-          </form>
+            {/* RIGHT COLUMN: RECRUITMENT PLATFORM AI VISUAL CARD */}
+            <div style={styles.heroRightCol}>
+              <div style={styles.mockWindow}>
+                {/* Browser bar */}
+                <div style={styles.mockHeader}>
+                  <div style={styles.mockDots}>
+                    <span style={{ ...styles.mockDot, background: '#EF4444' }} />
+                    <span style={{ ...styles.mockDot, background: '#F59E0B' }} />
+                    <span style={{ ...styles.mockDot, background: '#10B981' }} />
+                  </div>
+                  <div style={styles.mockSearchPill}>recruitnexus.ai / candidates</div>
+                </div>
 
-          {/* 3. STATISTICS ROW */}
-          <div style={styles.statsGrid}>
-            <div style={styles.statCard}>
-              <span style={styles.statNumber}>
-                {loadingStats ? '...' : formatStatNumber(stats?.activeJobs)}
-              </span>
-              <span style={styles.statLabel}>Active Job Openings</span>
+                {/* Card Body */}
+                <div style={styles.mockBody}>
+                  <div style={styles.mockCandidateCard}>
+                    <div style={{ ...styles.mockAvatar, background: currentSlideData.accentColor }}>
+                      <BrainCircuit size={20} color="#FFFFFF" />
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <div style={styles.mockName}>{currentSlideData.cardTitle}</div>
+                      <div style={styles.mockSubtitle}>{currentSlideData.cardSubtitle}</div>
+                    </div>
+                    <span style={{ ...styles.mockScoreBadge, background: '#EFF6FF', color: currentSlideData.accentColor, border: `1px solid ${currentSlideData.accentColor}33` }}>
+                      {currentSlideData.matchScore}
+                    </span>
+                  </div>
+
+                  {/* Skill Pills */}
+                  <div style={styles.mockSkillsRow}>
+                    {currentSlideData.skills.map((skill, sIdx) => (
+                      <span key={sIdx} style={styles.mockSkillTag}>
+                        <Check size={12} color={currentSlideData.accentColor} />
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Status Footer */}
+                  <div style={styles.mockStatusRow}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <CheckCircle2 size={16} color="#16A34A" />
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#16A34A' }}>{currentSlideData.statusText}</span>
+                    </div>
+                    <span style={{ fontSize: '0.78rem', color: '#64748B' }}>{currentSlideData.statusSub}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* FLOATING DECORATIVE GLASS BADGES */}
+              <div style={styles.floatingGlassBadgeTop}>
+                <div style={styles.floatingIconBg}>
+                  <Target size={18} color={currentSlideData.accentColor} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A' }}>{currentSlideData.floatingBadge1Title}</div>
+                  <div style={{ fontSize: '0.68rem', color: '#64748B' }}>{currentSlideData.floatingBadge1Sub}</div>
+                </div>
+              </div>
+
+              <div style={styles.floatingGlassBadgeBottom}>
+                <div style={{ ...styles.floatingIconBg, background: '#DCFCE7' }}>
+                  <CheckCircle2 size={18} color="#16A34A" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0F172A' }}>{currentSlideData.floatingBadge2Title}</div>
+                  <div style={{ fontSize: '0.68rem', color: '#16A34A' }}>{currentSlideData.floatingBadge2Sub}</div>
+                </div>
+              </div>
             </div>
-            <div style={styles.statCard}>
-              <span style={styles.statNumber}>
-                {loadingStats ? '...' : formatStatNumber(stats?.hiringCompanies)}
-              </span>
-              <span style={styles.statLabel}>Hiring Companies</span>
+
+          </div>
+
+          {/* CAROUSEL ARROW CONTROLS */}
+          <button 
+            onClick={() => setCurrentSlide((prev) => (prev === 0 ? heroSlides.length - 1 : prev - 1))}
+            style={styles.carouselArrowPrev}
+            aria-label="Previous Slide"
+          >
+            <ChevronLeft size={22} color="#374151" />
+          </button>
+
+          <button 
+            onClick={() => setCurrentSlide((prev) => (prev + 1) % heroSlides.length)}
+            style={styles.carouselArrowNext}
+            aria-label="Next Slide"
+          >
+            <ChevronRight size={22} color="#374151" />
+          </button>
+
+          {/* CAROUSEL INDICATOR DOTS */}
+          <div style={styles.carouselDotsContainer}>
+            {heroSlides.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentSlide(idx)}
+                style={{
+                  ...styles.carouselDot,
+                  width: currentSlide === idx ? '28px' : '8px',
+                  background: currentSlide === idx ? currentSlideData.accentColor : '#9CA3AF',
+                }}
+                aria-label={`Slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* 2. JOB SEARCH PANEL */}
+        <form onSubmit={handleSearch} style={styles.searchCard}>
+          <div style={styles.searchGroup}>
+            <label style={styles.searchLabel}>Job Title or Skills</label>
+            <div style={styles.inputWrapper}>
+              <Search size={20} color="#6B7280" />
+              <input
+                type="text"
+                placeholder="e.g. React Developer, Python, Data Scientist"
+                value={searchWhat}
+                onChange={(e) => setSearchWhat(e.target.value)}
+                style={styles.searchInput}
+              />
             </div>
-            <div style={styles.statCard}>
-              <span style={styles.statNumber}>
-                {loadingStats ? '...' : formatStatNumber(stats?.qualifiedCandidates)}
-              </span>
-              <span style={styles.statLabel}>Qualified Candidates</span>
+          </div>
+          
+          <div style={styles.searchDivider} />
+
+          <div style={styles.searchGroup}>
+            <label style={styles.searchLabel}>Location</label>
+            <div style={styles.inputWrapper}>
+              <MapPin size={20} color="#6B7280" />
+              <input
+                type="text"
+                placeholder="City, State, or Remote"
+                value={searchWhere}
+                onChange={(e) => setSearchWhere(e.target.value)}
+                style={styles.searchInput}
+              />
             </div>
-            <div style={styles.statCard}>
-              <span style={styles.statNumber}>
-                {loadingStats ? '...' : formatStatNumber(stats?.aiMatchAccuracy, true)}
-              </span>
-              <span style={styles.statLabel}>AI Match Accuracy</span>
+          </div>
+
+          <div style={styles.searchDivider} />
+
+          <div style={styles.searchGroup}>
+            <label style={styles.searchLabel}>Experience Level</label>
+            <div style={styles.inputWrapper}>
+              <Briefcase size={20} color="#6B7280" />
+              <select
+                value={selectedExperience}
+                onChange={(e) => setSelectedExperience(e.target.value)}
+                style={styles.searchSelect}
+              >
+                <option value="All">Any Experience</option>
+                <option value="0">Fresher (0 years)</option>
+                <option value="1">1 year</option>
+                <option value="2">2 years</option>
+                <option value="3">3 years</option>
+                <option value="5">5 years</option>
+                <option value="8">8+ years</option>
+              </select>
             </div>
+          </div>
+
+          <button type="submit" className="btn-primary" style={styles.searchBtn}>
+            <span>Search Jobs</span>
+            <ArrowRight size={18} />
+          </button>
+        </form>
+
+        {/* 3. PLATFORM STATISTICS ROW */}
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <span style={styles.statNumber}>
+              {loadingStats ? '...' : formatStatNumber(stats?.activeJobs)}
+            </span>
+            <span style={styles.statLabel}>Active Job Openings</span>
+          </div>
+          <div style={styles.statCard}>
+            <span style={styles.statNumber}>
+              {loadingStats ? '...' : formatStatNumber(stats?.hiringCompanies)}
+            </span>
+            <span style={styles.statLabel}>Hiring Companies</span>
+          </div>
+          <div style={styles.statCard}>
+            <span style={styles.statNumber}>
+              {loadingStats ? '...' : formatStatNumber(stats?.qualifiedCandidates)}
+            </span>
+            <span style={styles.statLabel}>Qualified Candidates</span>
+          </div>
+          <div style={styles.statCard}>
+            <span style={styles.statNumber}>
+              {loadingStats ? '...' : formatStatNumber(stats?.aiMatchAccuracy, true)}
+            </span>
+            <span style={styles.statLabel}>AI Match Accuracy</span>
           </div>
         </div>
       </section>
 
-      {/* 4. HOW RECRUITNEXUS WORKS - CANDIDATE JOURNEY TUTORIAL */}
-      <section style={{ ...styles.section, background: '#F8FAFC', borderRadius: '24px', padding: '60px 40px', border: '1px solid #E5E7EB', margin: '40px 0' }}>
+      {/* 4. POPULAR JOB CATEGORIES */}
+      <section style={styles.section}>
         <div style={styles.sectionHeader}>
-          <h2 style={styles.sectionTitle}>How RecruitNexus Works</h2>
-          <p style={styles.sectionSubtitle}>From discovering the right job to getting hired — RecruitNexus guides you through every step.</p>
+          <span style={styles.badgeLabel}>Explore Roles</span>
+          <h2 style={styles.sectionTitle}>Popular Job Categories</h2>
+          <p style={styles.sectionSubtitle}>Discover high-demand technology tracks curated across enterprise hiring partners</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', margin: '40px 0' }}>
-          {candidateFlowSteps.map((item) => (
-            <div
-              key={item.step}
-              className="glass-panel"
-              style={{
-                background: '#FFFFFF',
-                border: '1px solid #E5E7EB',
-                borderRadius: '16px',
-                padding: '24px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                position: 'relative',
-                transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
-                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)'
-              }}
+        <div style={styles.categoriesGrid}>
+          {popularCategories.map((cat, idx) => (
+            <div 
+              key={idx} 
+              style={styles.categoryCard}
+              onClick={() => navigate(`/jobs?what=${encodeURIComponent(cat.name)}`)}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ background: '#EFF6FF', padding: '10px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {item.icon}
-                </div>
-                <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#2563EB', background: '#DBEAFE', padding: '4px 10px', borderRadius: '20px' }}>
-                  Step {item.step}
-                </span>
+              <div style={styles.categoryIconBox}>{cat.icon}</div>
+              <h3 style={styles.categoryName}>{cat.name}</h3>
+              <span style={styles.categoryCount}>{cat.count}</span>
+              <div style={styles.categoryLinkRow}>
+                <span>Browse Jobs</span>
+                <ArrowUpRight size={14} color="#2563EB" />
               </div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#111827', margin: 0 }}>
-                {item.title}
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: '#4B5563', margin: 0, lineHeight: 1.5 }}>
-                {item.desc}
-              </p>
             </div>
           ))}
         </div>
+      </section>
 
-        {/* CTA BOTTOM BANNER */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginTop: '30px', textAlign: 'center', background: '#FFFFFF', padding: '30px', borderRadius: '16px', border: '1px solid #E5E7EB' }}>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#111827', margin: 0 }}>
-            Ready to find your next opportunity?
-          </h3>
-          <Link to="/register" className="btn-primary" style={{ padding: '12px 28px', fontSize: '0.95rem', fontWeight: 700 }}>
-            Get Started
+      {/* 5. FEATURED / LATEST JOBS */}
+      <section style={{ ...styles.section, background: '#F8FAFC', borderRadius: '24px', padding: '60px 40px', border: '1px solid #E5E7EB' }}>
+        <div style={styles.sectionHeader}>
+          <span style={styles.badgeLabel}>Live Opportunities</span>
+          <h2 style={styles.sectionTitle}>Featured Job Listings</h2>
+          <p style={styles.sectionSubtitle}>Explore recent job postings seeking qualified talent across engineering & AI teams</p>
+        </div>
+
+        {loadingJobs ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#6B7280' }}>
+            Loading latest opportunities...
+          </div>
+        ) : featuredJobs.length > 0 ? (
+          <div style={styles.jobsGrid}>
+            {featuredJobs.map((job) => (
+              <div key={job.id} style={styles.jobCard}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                  <div>
+                    <h3 style={styles.jobTitle}>{job.title}</h3>
+                    <span style={styles.jobCompany}>
+                      {job.companyName ? job.companyName : (job.recruiterName ? job.recruiterName : 'Enterprise Partner')}
+                    </span>
+                  </div>
+                  <span className="badge badge-purple" style={{ fontSize: '0.72rem' }}>
+                    {job.jobType || 'Full Time'}
+                  </span>
+                </div>
+
+                <div style={styles.jobMetaRow}>
+                  <div style={styles.jobMetaItem}>
+                    <MapPin size={14} color="#6B7280" />
+                    <span>{job.location || 'Remote'}</span>
+                  </div>
+                  {job.salaryRange && (
+                    <div style={styles.jobMetaItem}>
+                      <Briefcase size={14} color="#6B7280" />
+                      <span>{job.salaryRange}</span>
+                    </div>
+                  )}
+                </div>
+
+                <p style={styles.jobDescSnippet}>
+                  {job.description ? (job.description.length > 110 ? `${job.description.substring(0, 110)}...` : job.description) : 'No description provided.'}
+                </p>
+
+                <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>
+                    Posted {new Date(job.createdAt).toLocaleDateString()}
+                  </span>
+                  <Link to="/jobs" className="btn-secondary" style={{ padding: '6px 14px', fontSize: '0.82rem', height: '36px' }}>
+                    <span>View Details</span>
+                    <ArrowUpRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#6B7280' }}>
+            No jobs found at the moment. Check back soon!
+          </div>
+        )}
+
+        <div style={{ textAlign: 'center', marginTop: '36px' }}>
+          <Link to="/jobs" className="btn-primary" style={{ padding: '12px 28px', fontSize: '0.95rem' }}>
+            <span>Explore All Jobs</span>
+            <ArrowRight size={16} />
           </Link>
         </div>
       </section>
 
-      {/* 4. TRUSTED BRANDS / FEATURED COMPANIES */}
+      {/* 6. TRUSTED ENTERPRISE HIRING PARTNERS */}
       <section style={styles.section}>
         <div style={styles.sectionHeader}>
-          <h2 style={styles.sectionTitle}>Featured Enterprise Hiring Partners</h2>
-          <p style={styles.sectionSubtitle}>Top global technology companies actively recruiting talent through RecruitNexus</p>
+          <h2 style={styles.sectionTitle}>Featured Hiring Partners</h2>
+          <p style={styles.sectionSubtitle}>Top technology leaders actively recruiting talent through the RecruitNexus ecosystem</p>
         </div>
         <div style={styles.companiesGrid}>
           {featuredBrands.map((brand, idx) => (
@@ -364,7 +603,7 @@ export const LandingPage: React.FC = () => {
                 </div>
               </div>
               <p style={styles.companyMeta}>{brand.jobs}</p>
-              <Link to={`/jobs?what=${brand.name}`} className="btn-secondary" style={styles.viewJobsBtn}>
+              <Link to={`/jobs?what=${encodeURIComponent(brand.name)}`} className="btn-secondary" style={styles.viewJobsBtn}>
                 <span>View Openings</span>
                 <ArrowUpRight size={14} />
               </Link>
@@ -373,53 +612,43 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 5. AI FEATURES SHOWCASE */}
-      <section style={{ ...styles.section, background: '#F8FAFC', borderRadius: '24px', padding: '60px 40px' }}>
+      {/* 7. WHY RECRUITNEXUS (4 FEATURE CARDS) */}
+      <section style={{ ...styles.section, background: '#F8FAFC', borderRadius: '24px', padding: '60px 40px', margin: '40px 0' }}>
         <div style={styles.sectionHeader}>
-          <span style={styles.badgeLabel}>AI-Powered HR Automation</span>
-          <h2 style={styles.sectionTitle}>Built for End-to-End Enterprise Hiring</h2>
-          <p style={styles.sectionSubtitle}>From resume matching to pre-joining onboarding, leverage Gemini AI across your recruitment pipeline.</p>
+          <span style={styles.badgeLabel}>Why RecruitNexus</span>
+          <h2 style={styles.sectionTitle}>Built for Modern Recruitment Teams</h2>
+          <p style={styles.sectionSubtitle}>Integrated tools designed to streamline sourcing, evaluation, and candidate engagement.</p>
         </div>
-        <div style={styles.featuresGrid}>
-          {aiFeatures.map((feat, idx) => (
-            <div key={idx} style={styles.featureCard}>
-              <div style={styles.featureIconBox}>{feat.icon}</div>
-              <span style={styles.featureTag}>{feat.tag}</span>
-              <h3 style={styles.featureTitle}>{feat.title}</h3>
-              <p style={styles.featureDesc}>{feat.desc}</p>
+
+        <div style={styles.whyGrid}>
+          {whyRecruitNexus.map((item, idx) => (
+            <div key={idx} style={styles.whyCard}>
+              <div style={styles.whyIconBox}>{item.icon}</div>
+              <h3 style={styles.whyTitle}>{item.title}</h3>
+              <p style={styles.whyDesc}>{item.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* 6. HOW IT WORKS WORKFLOW */}
-      <section style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <h2 style={styles.sectionTitle}>How RecruitNexus Works</h2>
-          <p style={styles.sectionSubtitle}>A seamless 3-step platform designed for both job seekers and corporate recruiters</p>
-        </div>
-        <div style={styles.stepsGrid}>
-          {workflowSteps.map((step, idx) => (
-            <div key={idx} style={styles.stepCard}>
-              <span style={styles.stepBadge}>{step.step}</span>
-              <h3 style={styles.stepTitle}>{step.title}</h3>
-              <p style={styles.stepDesc}>{step.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* 7. CTA BANNER */}
-      <section style={styles.ctaBanner}>
-        <div style={styles.ctaContent}>
-          <h2 style={styles.ctaTitle}>Ready to Accelerate Your Hiring?</h2>
-          <p style={styles.ctaSubtitle}>Join thousands of recruiters and candidates using AI-driven matching today.</p>
-          <div style={styles.ctaButtons}>
-            <Link to="/register" className="btn-primary" style={{ padding: '14px 32px', fontSize: '1rem' }}>
-              Get Started Free
+      {/* 8. FINAL CTA SECTION (PREMIUM DARK BLUE GRADIENT) */}
+      <section style={styles.finalCtaBanner}>
+        <div style={styles.finalCtaContent}>
+          <div style={styles.finalCtaBadge}>
+            <Zap size={14} color="#60A5FA" />
+            <span>Ready for Your Next Career Move?</span>
+          </div>
+          <h2 style={styles.finalCtaTitle}>Your Next Opportunity is Waiting</h2>
+          <p style={styles.finalCtaSubtitle}>
+            Take the first step towards your career. Join thousands of candidates and recruiters using RecruitNexus AI today.
+          </p>
+          <div style={styles.finalCtaButtons}>
+            <Link to="/jobs" className="btn-primary" style={{ padding: '14px 32px', fontSize: '1rem', background: '#2563EB', borderColor: '#2563EB' }}>
+              <span>Explore Jobs</span>
+              <ArrowRight size={18} />
             </Link>
-            <Link to="/pricing" className="btn-secondary" style={{ padding: '14px 32px', fontSize: '1rem' }}>
-              Explore Pricing
+            <Link to="/register" className="btn-secondary" style={{ padding: '14px 32px', fontSize: '1rem', background: 'transparent', color: '#FFFFFF', borderColor: '#475569' }}>
+              <span>Create Free Account</span>
             </Link>
           </div>
         </div>
@@ -435,52 +664,296 @@ const styles: { [key: string]: React.CSSProperties } = {
     margin: '0 auto',
     padding: '0 32px',
   },
-  heroSection: {
-    padding: '60px 0 40px 0',
-    textAlign: 'center',
+  heroWrapper: {
+    padding: '30px 0 20px 0',
+    position: 'relative',
   },
-  heroContent: {
-    maxWidth: '1000px',
+  heroSlideCard: {
+    borderRadius: '24px',
+    padding: '48px 48px 64px 48px',
+    position: 'relative',
+    transition: 'all 0.5s ease-in-out',
+    border: '1px solid rgba(37, 99, 235, 0.15)',
+    boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.05)',
+    minHeight: '440px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  heroGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+    gap: '40px',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: '1280px',
     margin: '0 auto',
+    zIndex: 5,
+  },
+  heroLeftCol: {
+    textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
   heroBadge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '8px',
-    background: '#EFF6FF',
-    border: '1px solid #BFDBFE',
-    color: '#2563EB',
+    background: '#FFFFFF',
+    border: '1px solid',
     padding: '6px 16px',
     borderRadius: '20px',
     fontSize: '0.88rem',
-    fontWeight: 600,
-    marginBottom: '24px',
+    fontWeight: 700,
+    marginBottom: '16px',
+    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)',
   },
   heroTitle: {
-    fontSize: '3.5rem',
+    fontSize: '2.8rem',
     fontWeight: 800,
-    color: '#111827',
+    color: '#0F172A',
     lineHeight: 1.15,
-    letterSpacing: '-1.5px',
-    marginBottom: '20px',
+    letterSpacing: '-1.2px',
+    marginBottom: '16px',
   },
   heroSubtitle: {
-    fontSize: '1.2rem',
-    color: '#4B5563',
+    fontSize: '1.08rem',
+    color: '#334155',
     lineHeight: 1.6,
-    maxWidth: '780px',
-    margin: '0 auto 40px auto',
+    marginBottom: '28px',
+  },
+  heroActionRow: {
+    display: 'flex',
+    gap: '14px',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  heroPrimaryBtn: {
+    padding: '12px 28px',
+    fontSize: '0.98rem',
+    fontWeight: 700,
+  },
+  heroSecondaryBtn: {
+    padding: '12px 24px',
+    fontSize: '0.98rem',
+    fontWeight: 600,
+  },
+  heroRightCol: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '10px',
+  },
+  mockWindow: {
+    background: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #CBD5E1',
+    boxShadow: '0 20px 30px -10px rgba(0, 0, 0, 0.1)',
+    width: '100%',
+    maxWidth: '420px',
+    overflow: 'hidden',
+    textAlign: 'left',
+  },
+  mockHeader: {
+    background: '#F8FAFC',
+    borderBottom: '1px solid #E2E8F0',
+    padding: '10px 14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  mockDots: {
+    display: 'flex',
+    gap: '6px',
+  },
+  mockDot: {
+    width: '10px',
+    height: '10px',
+    borderRadius: '50%',
+  },
+  mockSearchPill: {
+    fontSize: '0.72rem',
+    color: '#64748B',
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    padding: '2px 10px',
+    borderRadius: '10px',
+    fontWeight: 500,
+  },
+  mockBody: {
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+  },
+  mockCandidateCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    background: '#F8FAFC',
+    padding: '10px 12px',
+    borderRadius: '12px',
+    border: '1px solid #E2E8F0',
+  },
+  mockAvatar: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  mockName: {
+    fontSize: '0.92rem',
+    fontWeight: 700,
+    color: '#0F172A',
+  },
+  mockSubtitle: {
+    fontSize: '0.75rem',
+    color: '#64748B',
+  },
+  mockScoreBadge: {
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    padding: '4px 8px',
+    borderRadius: '8px',
+    whiteSpace: 'nowrap',
+  },
+  mockSkillsRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '6px',
+  },
+  mockSkillTag: {
+    fontSize: '0.74rem',
+    fontWeight: 600,
+    color: '#334155',
+    background: '#F1F5F9',
+    border: '1px solid #E2E8F0',
+    padding: '3px 8px',
+    borderRadius: '6px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  mockStatusRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: '8px',
+    borderTop: '1px solid #F1F5F9',
+  },
+  floatingGlassBadgeTop: {
+    position: 'absolute',
+    top: '-12px',
+    right: '10px',
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(8px)',
+    border: '1px solid #CBD5E1',
+    borderRadius: '12px',
+    padding: '8px 12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    boxShadow: '0 10px 20px -5px rgba(0, 0, 0, 0.08)',
+    zIndex: 10,
+    textAlign: 'left',
+  },
+  floatingGlassBadgeBottom: {
+    position: 'absolute',
+    bottom: '-12px',
+    left: '10px',
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(8px)',
+    border: '1px solid #CBD5E1',
+    borderRadius: '12px',
+    padding: '8px 12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    boxShadow: '0 10px 20px -5px rgba(0, 0, 0, 0.08)',
+    zIndex: 10,
+    textAlign: 'left',
+  },
+  floatingIconBg: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    background: '#EFF6FF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  carouselArrowPrev: {
+    position: 'absolute',
+    left: '20px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '50%',
+    width: '44px',
+    height: '44px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+    outline: 'none',
+    zIndex: 10,
+  },
+  carouselArrowNext: {
+    position: 'absolute',
+    right: '20px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '50%',
+    width: '44px',
+    height: '44px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+    outline: 'none',
+    zIndex: 10,
+  },
+  carouselDotsContainer: {
+    position: 'absolute',
+    bottom: '20px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+  },
+  carouselDot: {
+    height: '8px',
+    borderRadius: '4px',
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease-in-out',
   },
   searchCard: {
     background: '#FFFFFF',
-    border: '1px solid #6B7280',
+    border: '1px solid #CBD5E1',
     borderRadius: '16px',
-    padding: '16px 24px',
+    padding: '20px 24px',
     display: 'flex',
     alignItems: 'center',
     gap: '16px',
-    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08)',
-    marginBottom: '50px',
+    boxShadow: '0 15px 30px -10px rgba(0, 0, 0, 0.08)',
+    margin: '-30px auto 40px auto',
+    position: 'relative',
+    zIndex: 20,
+    maxWidth: '1100px',
     flexWrap: 'wrap',
   },
   searchGroup: {
@@ -526,7 +999,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   searchDivider: {
     width: '1px',
     height: '48px',
-    background: '#E5E7EB',
+    background: '#E2E8F0',
   },
   searchBtn: {
     height: '52px',
@@ -543,13 +1016,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '20px',
+    marginBottom: '20px',
   },
   statCard: {
     background: '#FFFFFF',
-    border: '1px solid #E5E7EB',
-    borderRadius: '12px',
+    border: '1px solid #E2E8F0',
+    borderRadius: '16px',
     padding: '24px 20px',
     boxShadow: 'var(--shadow-card)',
+    textAlign: 'center',
   },
   statNumber: {
     display: 'block',
@@ -562,15 +1037,15 @@ const styles: { [key: string]: React.CSSProperties } = {
   statLabel: {
     fontSize: '0.85rem',
     fontWeight: 600,
-    color: '#6B7280',
+    color: '#64748B',
     textTransform: 'uppercase',
   },
   section: {
-    padding: '60px 0',
+    padding: '50px 0',
   },
   sectionHeader: {
     textAlign: 'center',
-    marginBottom: '48px',
+    marginBottom: '40px',
   },
   badgeLabel: {
     fontSize: '0.8rem',
@@ -584,15 +1059,108 @@ const styles: { [key: string]: React.CSSProperties } = {
   sectionTitle: {
     fontSize: '2.25rem',
     fontWeight: 800,
-    color: '#111827',
+    color: '#0F172A',
     letterSpacing: '-0.5px',
     marginBottom: '12px',
   },
   sectionSubtitle: {
     fontSize: '1.05rem',
-    color: '#4B5563',
+    color: '#475569',
     maxWidth: '650px',
     margin: '0 auto',
+  },
+  categoriesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+    gap: '24px',
+  },
+  categoryCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '16px',
+    padding: '28px',
+    cursor: 'pointer',
+    transition: 'all 0.25s ease-in-out',
+    boxShadow: 'var(--shadow-card)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  categoryIconBox: {
+    width: '52px',
+    height: '52px',
+    borderRadius: '12px',
+    background: '#F1F5F9',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '16px',
+  },
+  categoryName: {
+    fontSize: '1.15rem',
+    fontWeight: 700,
+    color: '#0F172A',
+    marginBottom: '6px',
+  },
+  categoryCount: {
+    fontSize: '0.88rem',
+    color: '#64748B',
+    marginBottom: '18px',
+  },
+  categoryLinkRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '0.88rem',
+    fontWeight: 700,
+    color: '#2563EB',
+    marginTop: 'auto',
+  },
+  jobsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+    gap: '24px',
+  },
+  jobCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E2E8F0',
+    borderRadius: '16px',
+    padding: '24px',
+    boxShadow: 'var(--shadow-card)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    transition: 'all 0.2s ease',
+  },
+  jobTitle: {
+    fontSize: '1.15rem',
+    fontWeight: 700,
+    color: '#0F172A',
+    margin: '0 0 4px 0',
+  },
+  jobCompany: {
+    fontSize: '0.88rem',
+    fontWeight: 600,
+    color: '#2563EB',
+  },
+  jobMetaRow: {
+    display: 'flex',
+    gap: '16px',
+    margin: '12px 0',
+    flexWrap: 'wrap',
+  },
+  jobMetaItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '0.82rem',
+    color: '#64748B',
+  },
+  jobDescSnippet: {
+    fontSize: '0.88rem',
+    color: '#475569',
+    lineHeight: 1.5,
+    marginBottom: '16px',
   },
   companiesGrid: {
     display: 'grid',
@@ -601,8 +1169,8 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   companyCard: {
     background: '#FFFFFF',
-    border: '1px solid #E5E7EB',
-    borderRadius: '12px',
+    border: '1px solid #E2E8F0',
+    borderRadius: '16px',
     padding: '24px',
     boxShadow: 'var(--shadow-card)',
     display: 'flex',
@@ -628,7 +1196,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   companyName: {
     fontSize: '1.1rem',
     fontWeight: 700,
-    color: '#111827',
+    color: '#0F172A',
     margin: '0 0 2px 0',
   },
   companyRating: {
@@ -638,7 +1206,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   companyMeta: {
     fontSize: '0.88rem',
-    color: '#4B5563',
+    color: '#64748B',
     marginBottom: '20px',
   },
   viewJobsBtn: {
@@ -647,110 +1215,83 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: '100%',
     justifyContent: 'center',
   },
-  featuresGrid: {
+  whyGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
     gap: '28px',
   },
-  featureCard: {
+  whyCard: {
     background: '#FFFFFF',
-    border: '1px solid #E5E7EB',
+    border: '1px solid #E2E8F0',
     borderRadius: '16px',
-    padding: '32px 28px',
+    padding: '32px 24px',
     boxShadow: 'var(--shadow-card)',
     textAlign: 'left',
   },
-  featureIconBox: {
+  whyIconBox: {
     width: '56px',
     height: '56px',
     borderRadius: '12px',
-    background: '#EFF6FF',
+    background: '#F1F5F9',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: '20px',
   },
-  featureTag: {
-    fontSize: '0.72rem',
-    fontWeight: 700,
-    color: '#2563EB',
-    background: '#EFF6FF',
-    padding: '2px 8px',
-    borderRadius: '6px',
-    display: 'inline-block',
-    marginBottom: '12px',
-    border: '1px solid #BFDBFE',
-  },
-  featureTitle: {
-    fontSize: '1.25rem',
-    fontWeight: 700,
-    color: '#111827',
-    marginBottom: '10px',
-  },
-  featureDesc: {
-    fontSize: '0.92rem',
-    color: '#4B5563',
-    lineHeight: 1.6,
-  },
-  stepsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '32px',
-  },
-  stepCard: {
-    background: '#FFFFFF',
-    border: '1px solid #E5E7EB',
-    borderRadius: '16px',
-    padding: '36px 28px',
-    boxShadow: 'var(--shadow-card)',
-    textAlign: 'left',
-    position: 'relative',
-  },
-  stepBadge: {
-    fontSize: '2rem',
-    fontWeight: 800,
-    color: '#2563EB',
-    marginBottom: '16px',
-    display: 'block',
-  },
-  stepTitle: {
+  whyTitle: {
     fontSize: '1.2rem',
     fontWeight: 700,
-    color: '#111827',
-    marginBottom: '12px',
+    color: '#0F172A',
+    marginBottom: '10px',
   },
-  stepDesc: {
+  whyDesc: {
     fontSize: '0.92rem',
-    color: '#4B5563',
+    color: '#475569',
     lineHeight: 1.6,
   },
-  ctaBanner: {
-    background: '#FFFFFF',
-    border: '1px solid #E5E7EB',
-    borderRadius: '24px',
-    padding: '60px 40px',
+  finalCtaBanner: {
+    background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #1E3A8A 100%)',
+    borderRadius: '28px',
+    padding: '70px 40px',
     margin: '40px 0 80px 0',
     textAlign: 'center',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+    boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)',
+    color: '#FFFFFF',
   },
-  ctaContent: {
-    maxWidth: '700px',
+  finalCtaContent: {
+    maxWidth: '780px',
     margin: '0 auto',
   },
-  ctaTitle: {
-    fontSize: '2.5rem',
+  finalCtaBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: 'rgba(255, 255, 255, 0.1)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    color: '#93C5FD',
+    padding: '6px 16px',
+    borderRadius: '20px',
+    fontSize: '0.88rem',
+    fontWeight: 600,
+    marginBottom: '24px',
+  },
+  finalCtaTitle: {
+    fontSize: '2.8rem',
     fontWeight: 800,
-    color: '#111827',
+    color: '#FFFFFF',
     marginBottom: '16px',
+    letterSpacing: '-1px',
   },
-  ctaSubtitle: {
-    fontSize: '1.1rem',
-    color: '#4B5563',
-    marginBottom: '32px',
+  finalCtaSubtitle: {
+    fontSize: '1.15rem',
+    color: '#94A3B8',
+    marginBottom: '36px',
+    lineHeight: 1.6,
   },
-  ctaButtons: {
+  finalCtaButtons: {
     display: 'flex',
     gap: '16px',
     justifyContent: 'center',
+    flexWrap: 'wrap',
   },
 };

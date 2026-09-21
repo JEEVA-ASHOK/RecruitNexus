@@ -47,6 +47,16 @@ namespace backend.DTOs
         public string ResumePath { get; set; } = string.Empty;
         public string Education { get; set; } = string.Empty;
         public string AI_Summary { get; set; } = string.Empty;
+
+        // Phase 2 Personal Information Fields
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Gender { get; set; }
+        public string? DateOfBirth { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? Country { get; set; }
     }
 
     public class UpdateProfileRequest
@@ -55,5 +65,28 @@ namespace backend.DTOs
         public string[] Skills { get; set; } = Array.Empty<string>();
         public int ExperienceYears { get; set; }
         public string Education { get; set; } = string.Empty;
+
+        // Optional Personal Information Fields
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Gender { get; set; }
+        public string? DateOfBirth { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? Country { get; set; }
+    }
+
+    public class UpdatePersonalProfileRequest
+    {
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Gender { get; set; }
+        public string? DateOfBirth { get; set; }
+        public string? Phone { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? Country { get; set; }
     }
 }

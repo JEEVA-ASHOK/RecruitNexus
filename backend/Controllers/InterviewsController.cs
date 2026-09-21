@@ -305,26 +305,36 @@ namespace backend.Controllers
 
                 try
                 {
-                    var subject = $"Interview Scheduled: {application.Job!.Title}";
+                    var companyName = !string.IsNullOrEmpty(request.CompanyName) ? request.CompanyName : (application.Job?.CompanyName ?? "RecruitNexus Partner");
+                    var interviewDateIst = request.InterviewDate.Kind == DateTimeKind.Utc 
+                        ? request.InterviewDate.AddHours(5).AddMinutes(30).ToString("f") 
+                        : request.InterviewDate.ToString("f");
+
+                    var subject = $"Interview Scheduled: {application.Job!.Title} at {companyName}";
                     var locationDetail = request.Format == "Online" 
                         ? $"<p><strong>Meeting Link:</strong> <a href='{request.MeetingLink}'>{request.MeetingLink}</a></p>" 
-                        : $@"<p><strong>Company:</strong> {request.CompanyName}</p>
-                             <p><strong>Address:</strong> {request.OfficeAddress}</p>
-                             <p><strong>Venue Room:</strong> {request.Venue}</p>";
+                        : $@"<p><strong>Company:</strong> {companyName}</p>
+                             <p><strong>Office Address:</strong> {request.OfficeAddress}</p>
+                             <p><strong>Venue/Room:</strong> {request.Venue}</p>";
 
                     var body = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
-                            <h2 style='color: #0056b3;'>Interview Scheduled</h2>
+                            <h2 style='color: #0056b3;'>Interview Scheduled Confirmation</h2>
                             <p>Dear {application.Candidate.FullName},</p>
-                            <p>An interview has been scheduled for the position of <strong>{application.Job!.Title}</strong>.</p>
-                            <p><strong>Date & Time:</strong> {request.InterviewDate:f}</p>
-                            <p><strong>Format:</strong> {request.Format}</p>
+                            <p>An interview has been successfully scheduled for the position of <strong>{application.Job!.Title}</strong> at <strong>{companyName}</strong>.</p>
+                            <p><strong>Candidate Name:</strong> {application.Candidate.FullName}</p>
+                            <p><strong>Job Title:</strong> {application.Job!.Title}</p>
+                            <p><strong>Company:</strong> {companyName}</p>
+                            <p><strong>Interview Date & Time (IST):</strong> {interviewDateIst}</p>
+                            <p><strong>Interview Type / Format:</strong> {request.Format}</p>
+                            <p><strong>Status:</strong> {interview.Status}</p>
                             {locationDetail}
                             <p><strong>Reporting Time:</strong> {request.ReportingTime}</p>
                             <p><strong>Dress Code:</strong> {request.DressCode}</p>
                             <p><strong>Required Documents:</strong> {request.RequiredDocuments}</p>
-                            <p><strong>HR Coordinator:</strong> {request.HrName} ({request.HrEmail} / {request.HrPhone})</p>
-                            <p>Please log in to your dashboard to confirm your attendance.</p>
+                            <p><strong>HR Contact:</strong> {request.HrName} ({request.HrEmail} / {request.HrPhone})</p>
+                            <br/>
+                            <p>Please log in to your RecruitNexus dashboard to confirm your attendance.</p>
                             <br/>
                             <p>Best regards,<br/><strong>The RecruitNexus Team</strong></p>
                         </div>";

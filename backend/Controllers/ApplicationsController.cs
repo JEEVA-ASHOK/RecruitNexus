@@ -258,7 +258,7 @@ namespace backend.Controllers
             _context.Applications.Add(application);
             await _context.SaveChangesAsync();
 
-            // Send notification emails
+            // Send notification emails safely (application is already saved)
             try
             {
                 var candidate = await _context.Users.FirstOrDefaultAsync(u => u.Id == candidateId);
@@ -266,14 +266,22 @@ namespace backend.Controllers
 
                 if (candidate != null && !string.IsNullOrEmpty(candidate.Email))
                 {
-                    var candidateSubject = $"Job Application Submitted: {job.Title}";
+                    var companyName = !string.IsNullOrEmpty(job.CompanyName) ? job.CompanyName : (job.Company != null ? job.Company.Name : "RecruitNexus Partner");
+                    var appliedAtIst = application.AppliedAt.AddHours(5).AddMinutes(30).ToString("f");
+                    var candidateSubject = $"Application Confirmation: {job.Title} at {companyName}";
                     var candidateBody = $@"
                         <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
-                            <h2 style='color: #28a745;'>Application Received!</h2>
+                            <h2 style='color: #28a745;'>Application Confirmation Received!</h2>
                             <p>Dear {candidate.FullName},</p>
-                            <p>Your application for the position <strong>{job.Title}</strong> has been successfully submitted.</p>
-                            <p>Your resume matches with an AI score of <strong>{score}%</strong>.</p>
-                            <p>We will notify you as soon as the recruiter reviews your application.</p>
+                            <p>Your application for <strong>{job.Title}</strong> at <strong>{companyName}</strong> has been successfully submitted.</p>
+                            <p><strong>Candidate Name:</strong> {candidate.FullName}</p>
+                            <p><strong>Job Title:</strong> {job.Title}</p>
+                            <p><strong>Company:</strong> {companyName}</p>
+                            <p><strong>Application Date & Time (IST):</strong> {appliedAtIst}</p>
+                            <p><strong>Application Status:</strong> {application.Status}</p>
+                            <p><strong>AI Alignment Score:</strong> {score}%</p>
+                            <br/>
+                            <p>We will notify you as soon as the hiring team reviews your application.</p>
                             <br/>
                             <p>Best regards,<br/><strong>The RecruitNexus Team</strong></p>
                         </div>";

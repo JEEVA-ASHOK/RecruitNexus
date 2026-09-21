@@ -32,5 +32,6 @@ namespace backend.Models
         public string? ResultStatus { get; set; } = "Pending"; // Selected, Rejected, OnHold, NextRound, Pending
         public string? Feedback { get; set; } = string.Empty;
         public string? Remarks { get; set; } = string.Empty;
+        public bool ReminderSent { get; set; } = false;
     }
 }

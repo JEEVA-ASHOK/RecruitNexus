@@ -4,6 +4,7 @@ bin/
 obj/
 dist/
 node_modules/
+backend/uploads/
 
 # Environment files and secrets
 .env

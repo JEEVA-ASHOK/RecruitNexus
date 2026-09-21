@@ -117,6 +117,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IGeminiService, GeminiService>();
 builder.Services.AddTransient<IEmailService, EmailService>();
+builder.Services.AddHostedService<InterviewReminderBackgroundService>();
 
 var app = builder.Build();
 

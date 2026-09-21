@@ -34,12 +34,13 @@ namespace backend.Services
             var password = _configuration["Smtp:Password"];
             var enableSslStr = _configuration["Smtp:EnableSsl"];
 
-            // Check if configurations are missing
+            // Check if configurations are missing or set to placeholder
             if (string.IsNullOrWhiteSpace(server) || 
                 string.IsNullOrWhiteSpace(senderEmail) || 
-                string.IsNullOrWhiteSpace(password))
+                string.IsNullOrWhiteSpace(password) ||
+                senderEmail.Equals("YOUR_ACTUAL_GMAIL@gmail.com", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogWarning("SMTP Configuration is incomplete (Server, SenderEmail, or Password not configured). Skipping real email delivery to {ToEmail}.", toEmail);
+                _logger.LogWarning("SMTP Configuration is incomplete or using placeholder (Server, SenderEmail, or Password). Skipping real email delivery to {ToEmail}.", toEmail);
                 _logger.LogInformation("[MOCK EMAIL] To: {ToEmail} | Subject: {Subject}\nBody: {Body}", toEmail, subject, htmlMessage);
                 return;
             }

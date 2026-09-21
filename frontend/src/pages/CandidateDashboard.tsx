@@ -5,6 +5,10 @@ import { t } from '../i18n';
 import { useLanguage } from '../context/LanguageContext';
 import { ActivityHistory } from '../components/ActivityHistory';
 import { ProfilePhotoSelectorModal } from '../components/ProfilePhotoSelectorModal';
+import { PersonalInformationModal, PersonalInfo } from '../components/candidate/PersonalInformationModal';
+import { ProfileCompletionCard } from '../components/candidate/ProfileCompletionCard';
+import { CandidateProfessionalProfile } from '../components/candidate/CandidateProfessionalProfile';
+import { calculateProfileCompletion } from '../utils/profileCompletion';
 
 interface Application {
   id: number;
@@ -70,6 +74,78 @@ export const CandidateDashboard: React.FC = () => {
   const userJson = localStorage.getItem('user');
   const user = userJson ? JSON.parse(userJson) : null;
 
+  // Phase 1 Personal Information & Completion State
+  const [personalInfoModalOpen, setPersonalInfoModalOpen] = useState(false);
+  const [personalInfo, setPersonalInfo] = useState<PersonalInfo>({
+    firstName: '',
+    lastName: '',
+    gender: '',
+    dateOfBirth: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    country: ''
+  });
+
+  useEffect(() => {
+    if (!user) return;
+    const uId = user.id || user.userId;
+    const storageKey = `candidate_personal_info_${uId}`;
+
+    const loadInfo = () => {
+      const savedJson = localStorage.getItem(storageKey);
+      if (savedJson) {
+        try {
+          const parsed = JSON.parse(savedJson);
+          setPersonalInfo(parsed);
+        } catch {}
+      }
+    };
+
+    loadInfo();
+
+    const handleOpenModal = () => setPersonalInfoModalOpen(true);
+    const handleUpdated = (e: any) => {
+      if (e.detail) {
+        setPersonalInfo(e.detail);
+      } else {
+        loadInfo();
+      }
+    };
+
+    window.addEventListener('open-personal-info-modal', handleOpenModal);
+    window.addEventListener('personal-info-updated', handleUpdated);
+
+    return () => {
+      window.removeEventListener('open-personal-info-modal', handleOpenModal);
+      window.removeEventListener('personal-info-updated', handleUpdated);
+    };
+  }, [userJson]);
+
+  const getProfileCompletionDetails = () => {
+    return calculateProfileCompletion({
+      user,
+      profile: {
+        bio: savedBio || profile?.bio,
+        skills: savedSkills || profile?.skills,
+        experienceYears: savedExperienceYears || profile?.experienceYears,
+        education: savedEducation || profile?.education,
+        resumePath: profile?.resumePath,
+        firstName: personalInfo.firstName || profile?.firstName,
+        lastName: personalInfo.lastName || profile?.lastName,
+        gender: personalInfo.gender || profile?.gender,
+        dateOfBirth: personalInfo.dateOfBirth || profile?.dateOfBirth,
+        phoneNumber: personalInfo.phone || profile?.phoneNumber,
+        address: personalInfo.address || profile?.address,
+        city: personalInfo.city || profile?.city,
+        country: personalInfo.country || profile?.country
+      },
+      personalInfo,
+      applicationsCount: applications.length
+    });
+  };
+
   const startAiInterviewSession = async (interviewItem: any) => {
     setSimulatingInterview(interviewItem);
     setCurrentQuestionIdx(0);
@@ -122,6 +198,7 @@ export const CandidateDashboard: React.FC = () => {
   };
 
   const fetchAtsAnalysis = async (jobId?: number) => {
+    if (loadingAts) return;
     const targetJobId = jobId || selectedJobForAnalysis || (applications.length > 0 ? applications[0].jobId : 0);
     setLoadingAts(true);
     setAtsErrorMsg('');
@@ -189,6 +266,12 @@ export const CandidateDashboard: React.FC = () => {
       if (profRes.data) {
         const pData = profRes.data.profile || profRes.data;
         setProfile(profRes.data);
+        if (user) {
+          const uId = user.id || user.userId;
+          const proExtraJson = localStorage.getItem(`candidate_pro_details_${uId}`);
+          const proExtra = proExtraJson ? JSON.parse(proExtraJson) : {};
+          localStorage.setItem(`cached_profile_${uId}`, JSON.stringify({ ...pData, ...proExtra }));
+        }
 
         const fBio = pData.bio || '';
         const fSkills = Array.isArray(pData.skills)
@@ -206,6 +289,20 @@ export const CandidateDashboard: React.FC = () => {
         setSkills(fSkills);
         setExperienceYears(fExp);
         setEducation(fEdu);
+
+        if (pData.firstName || pData.lastName || pData.gender || pData.dateOfBirth || pData.phoneNumber || pData.phone || pData.address || pData.city || pData.country) {
+          setPersonalInfo(prev => ({
+            ...prev,
+            firstName: pData.firstName || prev.firstName,
+            lastName: pData.lastName || prev.lastName,
+            gender: pData.gender || prev.gender,
+            dateOfBirth: pData.dateOfBirth || prev.dateOfBirth,
+            phone: pData.phoneNumber || pData.phone || prev.phone,
+            address: pData.address || prev.address,
+            city: pData.city || prev.city,
+            country: pData.country || prev.country
+          }));
+        }
       }
 
       if (appRes.data) {
@@ -405,6 +502,29 @@ export const CandidateDashboard: React.FC = () => {
 
       {activeTab === 'overview' && (
         <>
+          {(() => {
+            const { percentage, missingFields, sections, statusMessage } = getProfileCompletionDetails();
+            return (
+              <div style={{ marginBottom: '24px' }}>
+                <ProfileCompletionCard
+                  percentage={percentage}
+                  missingFields={missingFields}
+                  statusMessage={statusMessage}
+                  sections={sections}
+                  onOpenPersonalModal={() => setPersonalInfoModalOpen(true)}
+                  onOpenProfessionalProfile={() => {
+                    setIsEditingProfile(true);
+                    const el = document.getElementById('professional-profile-card');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  onOpenResumeTab={() => {
+                    setActiveTab('ats');
+                  }}
+                />
+              </div>
+            );
+          })()}
+
           {/* Top Metrics Row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '24px' }}>
             <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -443,152 +563,14 @@ export const CandidateDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Profile Information View/Edit Mode Card */}
-          <div className="glass-panel" style={{ padding: '28px', borderRadius: '16px', marginBottom: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                👤 Candidate Profile Information
-              </h3>
-              {!isEditingProfile ? (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingProfile(true)}
-                  className="btn-primary"
-                  style={{ padding: '8px 18px', fontSize: '0.88rem' }}
-                >
-                  ✏️ Edit Profile
-                </button>
-              ) : null}
-            </div>
-
-            {profileSuccessMsg && (
-              <div style={{ background: '#DCFCE7', border: '1px solid #86EFAC', color: '#166534', padding: '12px 16px', borderRadius: '10px', fontSize: '0.9rem', marginBottom: '18px', fontWeight: 600 }}>
-                ✅ {profileSuccessMsg}
-              </div>
-            )}
-
-            {!isEditingProfile ? (
-              /* VIEW MODE */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Professional Bio</span>
-                  <p style={{ margin: '6px 0 0 0', fontSize: '0.95rem', color: '#111827', lineHeight: 1.5, background: '#F8FAFC', padding: '12px 16px', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
-                    {savedBio || 'No bio provided yet. Click Edit Profile to add your career summary.'}
-                  </p>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Technical Skills</span>
-                    <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {savedSkills ? (
-                        savedSkills.split(',').map((sk: string, i: number) => (
-                          <span key={i} style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', padding: '4px 10px', borderRadius: '16px', fontSize: '0.82rem', fontWeight: 600 }}>
-                            {sk.trim()}
-                          </span>
-                        ))
-                      ) : (
-                        <span style={{ color: '#9CA3AF', fontSize: '0.88rem' }}>No skills added</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Experience Years</span>
-                    <p style={{ margin: '6px 0 0 0', fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-                      {savedExperienceYears} Years
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Education Details</span>
-                  <p style={{ margin: '6px 0 0 0', fontSize: '0.95rem', color: '#111827', background: '#F8FAFC', padding: '10px 14px', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
-                    {savedEducation || 'No education details provided.'}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              /* EDIT MODE */
-              <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                    Professional Bio
-                  </label>
-                  <textarea
-                    rows={3}
-                    className="glass-input"
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder="Briefly describe your career background and interests..."
-                    style={{ width: '100%', resize: 'vertical' }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                      Technical Skills (comma-separated)
-                    </label>
-                    <input
-                      type="text"
-                      className="glass-input"
-                      value={skills}
-                      onChange={(e) => setSkills(e.target.value)}
-                      placeholder="e.g. React, TypeScript, C#, Python, SQL"
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                      Experience Years
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="glass-input"
-                      value={experienceYears}
-                      onChange={(e) => setExperienceYears(parseInt(e.target.value) || 0)}
-                      style={{ width: '100%' }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                    Education Details
-                  </label>
-                  <input
-                    type="text"
-                    className="glass-input"
-                    value={education}
-                    onChange={(e) => setEducation(e.target.value)}
-                    placeholder="e.g. B.S. Computer Science, Stanford University"
-                    style={{ width: '100%' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={handleCancelEditProfile}
-                    className="btn-secondary"
-                    style={{ padding: '10px 20px', fontSize: '0.88rem' }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                    disabled={savingProfile}
-                    style={{ padding: '10px 24px', fontSize: '0.88rem' }}
-                  >
-                    {savingProfile ? 'Saving...' : '💾 Save Profile Details'}
-                  </button>
-                </div>
-              </form>
-            )}
+          {/* Candidate Professional Profile */}
+          <div id="professional-profile-card" style={{ marginBottom: '24px' }}>
+            <CandidateProfessionalProfile
+              user={user}
+              profileData={profile}
+              onProfileUpdated={() => fetchData()}
+              onOpenResumeTab={() => setActiveTab('ats')}
+            />
           </div>
 
           {/* Resume Upload & Management Card */}
@@ -875,7 +857,10 @@ export const CandidateDashboard: React.FC = () => {
                     onChange={(e) => {
                       const id = parseInt(e.target.value, 10);
                       setSelectedAppId(id);
-                      fetchAtsAnalysis(id);
+                      const selectedApp = applications.find(app => app.id === id);
+                      if (selectedApp) {
+                        fetchAtsAnalysis(selectedApp.jobId);
+                      }
                     }}
                     className="glass-input"
                     style={{ padding: '8px 12px', fontSize: '0.88rem', fontWeight: 600, color: '#111827', width: 'auto' }}
@@ -1525,6 +1510,15 @@ export const CandidateDashboard: React.FC = () => {
         onClose={() => setPhotoModalOpen(false)}
         currentPhoto={profilePhoto}
         onSelectPhoto={(photoUrl) => setProfilePhoto(photoUrl)}
+      />
+
+      <PersonalInformationModal
+        isOpen={personalInfoModalOpen}
+        onClose={() => setPersonalInfoModalOpen(false)}
+        userId={user?.id || user?.userId || 0}
+        initialUserEmail={user?.email || ''}
+        initialFullName={user?.fullName || ''}
+        onSaved={(info) => setPersonalInfo(info)}
       />
     </div>
   );
