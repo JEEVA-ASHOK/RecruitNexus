@@ -8,6 +8,7 @@ import { ProfilePhotoSelectorModal } from '../components/ProfilePhotoSelectorMod
 import { PersonalInformationModal, PersonalInfo } from '../components/candidate/PersonalInformationModal';
 import { ProfileCompletionCard } from '../components/candidate/ProfileCompletionCard';
 import { CandidateProfessionalProfile } from '../components/candidate/CandidateProfessionalProfile';
+import { RecentlyViewedJobsWidget } from '../components/candidate/RecentlyViewedJobsWidget';
 import { calculateProfileCompletion } from '../utils/profileCompletion';
 
 interface Application {
@@ -306,7 +307,7 @@ export const CandidateDashboard: React.FC = () => {
       }
 
       if (appRes.data) {
-        setApplications(appRes.data);
+        setApplications(Array.isArray(appRes.data) ? appRes.data : (appRes.data.items || []));
       }
 
       if (intRes.data) {
@@ -561,6 +562,11 @@ export const CandidateDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Recently Viewed Jobs History */}
+          <div style={{ marginBottom: '24px' }}>
+            <RecentlyViewedJobsWidget userId={user?.id || user?.userId} />
           </div>
 
           {/* Candidate Professional Profile */}

@@ -26,6 +26,7 @@ namespace backend.Controllers
         public async Task<IActionResult> GetSummary()
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             // Total statistics
@@ -41,7 +42,7 @@ namespace backend.Controllers
             var rejectedApplications = await _context.Applications.CountAsync(a => a.Status == "Rejected");
 
             // Recruiter specific constraints (if not Admin, filter data relevant to this recruiter's company)
-            var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
             var recruiterCompanyId = recruiter?.CompanyId;
 
             int recruiterJobs = 0;
@@ -53,12 +54,12 @@ namespace backend.Controllers
 
             if (role == "Recruiter")
             {
-                recruiterJobs = await _context.Jobs.CountAsync(j => j.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && j.RecruiterId == userId));
-                recruiterApps = await _context.Applications.CountAsync(a => a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId));
-                recruiterInterviews = await _context.Interviews.CountAsync(i => i.Application!.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && i.Application!.Job!.RecruiterId == userId));
-                recruiterPending = await _context.Applications.CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId)) && (a.Status == "Applied" || a.Status == "Reviewing"));
-                recruiterSelected = await _context.Applications.CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId)) && (a.Status == "Offered" || a.Status == "Selected"));
-                recruiterRejected = await _context.Applications.CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId)) && a.Status == "Rejected");
+                recruiterJobs = await _context.Jobs.CountAsync(j => j.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && j.RecruiterId == userId.Value));
+                recruiterApps = await _context.Applications.CountAsync(a => a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId.Value));
+                recruiterInterviews = await _context.Interviews.CountAsync(i => i.Application!.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && i.Application!.Job!.RecruiterId == userId.Value));
+                recruiterPending = await _context.Applications.CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId.Value)) && (a.Status == "Applied" || a.Status == "Reviewing"));
+                recruiterSelected = await _context.Applications.CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId.Value)) && (a.Status == "Offered" || a.Status == "Selected"));
+                recruiterRejected = await _context.Applications.CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId.Value)) && a.Status == "Rejected");
             }
 
             // Monthly applications trend (last 6 months)
@@ -81,7 +82,7 @@ namespace backend.Controllers
                 else
                 {
                     count = await _context.Applications
-                        .CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId)) && a.AppliedAt.Year == m.Year && a.AppliedAt.Month == m.MonthNum);
+                        .CountAsync(a => (a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId.Value)) && a.AppliedAt.Year == m.Year && a.AppliedAt.Month == m.MonthNum);
                 }
 
                 trendData.Add(new { month = m.Month, count = count });
@@ -118,11 +119,12 @@ namespace backend.Controllers
         public async Task<IActionResult> GetRecruiterDashboardAnalytics()
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             var recruiter = await _context.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId);
+                .FirstOrDefaultAsync(u => u.Id == userId.Value);
 
             var recruiterCompanyId = recruiter?.CompanyId;
 
@@ -132,9 +134,9 @@ namespace backend.Controllers
 
             if (role == "Recruiter")
             {
-                jobsQuery = jobsQuery.Where(j => j.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && j.RecruiterId == userId));
-                appsQuery = appsQuery.Where(a => a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId));
-                interviewsQuery = interviewsQuery.Where(i => i.Application!.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && i.Application!.Job!.RecruiterId == userId));
+                jobsQuery = jobsQuery.Where(j => j.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && j.RecruiterId == userId.Value));
+                appsQuery = appsQuery.Where(a => a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId.Value));
+                interviewsQuery = interviewsQuery.Where(i => i.Application!.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && i.Application!.Job!.RecruiterId == userId.Value));
             }
 
             var totalJobs = await jobsQuery.CountAsync();
@@ -162,16 +164,24 @@ namespace backend.Controllers
             double averageInterviewScore = interviewsCompleted > 0 ? 86.5 : 82.0;
 
             var today = DateTime.UtcNow;
-            var monthlyTrend = new System.Collections.Generic.List<object>();
+            var sixMonthsAgoStart = new DateTime(today.Year, today.Month, 1).AddMonths(-5);
 
+            var monthlyGrouped = await appsQuery
+                .Where(a => a.AppliedAt >= sixMonthsAgoStart)
+                .GroupBy(a => new { a.AppliedAt.Year, a.AppliedAt.Month })
+                .Select(g => new { g.Key.Year, g.Key.Month, Count = g.Count() })
+                .ToListAsync();
+
+            var monthlyCounts = monthlyGrouped
+                .ToDictionary(x => $"{x.Year}-{x.Month}", x => x.Count);
+
+            var monthlyTrend = new System.Collections.Generic.List<object>();
             for (int i = 5; i >= 0; i--)
             {
                 var targetDate = today.AddMonths(-i);
                 var monthLabel = targetDate.ToString("MMM yyyy");
-                var monthNum = targetDate.Month;
-                var yearNum = targetDate.Year;
-
-                var count = await appsQuery.CountAsync(a => a.AppliedAt.Year == yearNum && a.AppliedAt.Month == monthNum);
+                var key = $"{targetDate.Year}-{targetDate.Month}";
+                var count = monthlyCounts.TryGetValue(key, out var c) ? c : 0;
                 monthlyTrend.Add(new { month = monthLabel, count = count });
             }
 
@@ -272,7 +282,7 @@ namespace backend.Controllers
             });
         }
 
-        private int GetUserId()
+        private int? GetUserId()
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier)
                      ?? User.FindFirst("sub")
@@ -281,7 +291,7 @@ namespace backend.Controllers
             {
                 return id;
             }
-            throw new UnauthorizedAccessException();
+            return null;
         }
 
         private string GetUserRole()

@@ -122,12 +122,17 @@ namespace backend.Data
             var allJobs = context.Jobs.Where(j => j.CompanyId == null).ToList();
             if (allJobs.Any())
             {
+                var recruiterIds = allJobs.Select(j => j.RecruiterId).Distinct().ToList();
+                var recruiterCompanyMap = context.Users
+                    .Where(u => recruiterIds.Contains(u.Id))
+                    .Select(u => new { u.Id, u.CompanyId })
+                    .ToDictionary(u => u.Id, u => u.CompanyId);
+
                 foreach (var j in allJobs)
                 {
-                    var rec = context.Users.FirstOrDefault(u => u.Id == j.RecruiterId);
-                    if (rec != null)
+                    if (recruiterCompanyMap.TryGetValue(j.RecruiterId, out var compId))
                     {
-                        j.CompanyId = rec.CompanyId;
+                        j.CompanyId = compId;
                     }
                 }
                 context.SaveChanges();
@@ -137,12 +142,17 @@ namespace backend.Data
             var allApps = context.Applications.Where(a => a.CompanyId == null).ToList();
             if (allApps.Any())
             {
+                var jobIds = allApps.Select(a => a.JobId).Distinct().ToList();
+                var jobCompanyMap = context.Jobs
+                    .Where(j => jobIds.Contains(j.Id))
+                    .Select(j => new { j.Id, j.CompanyId })
+                    .ToDictionary(j => j.Id, j => j.CompanyId);
+
                 foreach (var a in allApps)
                 {
-                    var j = context.Jobs.FirstOrDefault(job => job.Id == a.JobId);
-                    if (j != null)
+                    if (jobCompanyMap.TryGetValue(a.JobId, out var compId))
                     {
-                        a.CompanyId = j.CompanyId;
+                        a.CompanyId = compId;
                     }
                 }
                 context.SaveChanges();

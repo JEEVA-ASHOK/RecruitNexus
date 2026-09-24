@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, MessageSquare, Camera, X } from 'lucide-react';
+import { MessageSquare, Camera, X } from 'lucide-react';
 import { AiChatbot } from './AiChatbot';
 import { GoogleLensTranslator } from './GoogleLensTranslator';
+import { SmileBotIcon } from './SmileBotIcon';
 
 export const FloatingAiAssistant: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -69,7 +70,7 @@ export const FloatingAiAssistant: React.FC = () => {
             borderBottom: '1px solid #F1F5F9'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Bot size={18} color="#2563EB" />
+              <SmileBotIcon size={20} color="#2563EB" bgFill="#DBEAFE" />
               <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827' }}>AI Assistant</span>
             </div>
             <button
@@ -145,20 +146,20 @@ export const FloatingAiAssistant: React.FC = () => {
         onClick={() => setMenuOpen(!menuOpen)}
         title="AI Assistant"
         style={{
-          width: '54px',
-          height: '54px',
+          width: '56px',
+          height: '56px',
           borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          boxShadow: '0 8px 20px -4px rgba(37, 99, 235, 0.4)',
+          boxShadow: '0 8px 25px -4px rgba(37, 99, 235, 0.45)',
           border: '2px solid #FFFFFF',
           background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
           transition: 'transform 0.2s ease, boxShadow 0.2s ease'
         }}
       >
-        <Bot size={26} color="#FFFFFF" />
+        <SmileBotIcon size={28} color="#FFFFFF" bgFill="transparent" />
       </button>
 
       {/* MODAL COMPONENTS (TRIGGER BUTTONS HIDDEN) */}

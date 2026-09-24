@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { apiRequest } from '../api';
+import { apiRequest, API_BASE_URL } from '../api';
 import { Plus, Briefcase, FileText, Calendar, Send, ShieldAlert, CheckCircle2, User, Award, Clock, X, Eye, BarChart3, Users, TrendingUp } from 'lucide-react';
 import { Translate } from '../components/Translate';
 import { t } from '../i18n';
@@ -377,21 +377,22 @@ export const RecruiterDashboard: React.FC = () => {
 
   const loadData = async () => {
     // Load Recruiter's posted jobs
-    const { data: jobsData, error: jobsErr } = await apiRequest<Job[]>('/jobs');
-    if (!jobsErr && jobsData) {
-      // Filter jobs posted by current recruiter (managed on backend, but dashboard displays all recruiter owned)
+    const { data: jobsRes, error: jobsErr } = await apiRequest<any>('/jobs?all=true');
+    if (!jobsErr && jobsRes) {
+      const jobsList: Job[] = Array.isArray(jobsRes) ? jobsRes : (jobsRes.items || []);
       const recruiterUser = JSON.parse(localStorage.getItem('user') || '{}');
       if (recruiterUser.role === 'Admin') {
-        setJobs(jobsData);
+        setJobs(jobsList);
       } else {
-        setJobs(jobsData.filter(j => j.recruiterId === recruiterUser.userId));
+        setJobs(jobsList.filter(j => j.recruiterId === recruiterUser.userId));
       }
     }
 
     // Load applications for current recruiter's jobs
-    const { data: appsData, error: appsErr } = await apiRequest<Application[]>('/applications');
-    if (!appsErr && appsData) {
-      setApplications(appsData);
+    const { data: appsRes, error: appsErr } = await apiRequest<any>('/applications?all=true');
+    if (!appsErr && appsRes) {
+      const appsList: Application[] = Array.isArray(appsRes) ? appsRes : (appsRes.items || []);
+      setApplications(appsList);
     }
 
     // Load interviews
@@ -3075,7 +3076,7 @@ export const RecruiterDashboard: React.FC = () => {
             {/* The PDF Preview Iframe Frame */}
             <div style={{ flex: 1, background: 'rgba(0,0,0,0.3)', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
               <iframe
-                src={`http://localhost:5000/api/applications/resume/${previewingResume}`}
+                src={`${API_BASE_URL}/applications/resume/${previewingResume}`}
                 title="Resume Preview"
                 style={{ width: '100%', height: '100%', border: 'none' }}
               />
@@ -3083,7 +3084,7 @@ export const RecruiterDashboard: React.FC = () => {
 
             <div style={{ flexShrink: 0, marginTop: '16px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
               <a
-                href={`http://localhost:5000/api/applications/resume/${previewingResume}?download=true`}
+                href={`${API_BASE_URL}/applications/resume/${previewingResume}?download=true`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn-primary"

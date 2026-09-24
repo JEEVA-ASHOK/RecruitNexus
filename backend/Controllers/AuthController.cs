@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using backend.Data;
 using backend.Models;
 using backend.DTOs;
@@ -26,14 +28,18 @@ namespace backend.Controllers
         private readonly IGeminiService _geminiService;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
+        private readonly IWebHostEnvironment _env;
+        private readonly ILogger<AuthController> _logger;
         private readonly PasswordHasher<User> _passwordHasher;
 
-        public AuthController(RecruitmentDbContext context, IGeminiService geminiService, IConfiguration configuration, IEmailService emailService)
+        public AuthController(RecruitmentDbContext context, IGeminiService geminiService, IConfiguration configuration, IEmailService emailService, IWebHostEnvironment env, ILogger<AuthController> logger)
         {
             _context = context;
             _geminiService = geminiService;
             _configuration = configuration;
             _emailService = emailService;
+            _env = env;
+            _logger = logger;
             _passwordHasher = new PasswordHasher<User>();
         }
 
@@ -132,7 +138,7 @@ namespace backend.Controllers
             }
 
             var emailLower = request.Email.Trim().ToLower();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == emailLower);
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email.ToLower() == emailLower);
             if (user == null)
             {
                 return Unauthorized(new { message = "Invalid email or password." });
@@ -144,7 +150,7 @@ namespace backend.Controllers
                 return Unauthorized(new { message = "Invalid email or password." });
             }
 
-            var token = JwtHelper.GenerateJwtToken(user, _configuration);
+            var token = JwtHelper.GenerateJwtToken(user, _configuration, _env);
 
             // Send non-blocking login notification email for candidate logins
             if (user.Role == "Candidate" && !string.IsNullOrWhiteSpace(user.Email))
@@ -173,7 +179,7 @@ namespace backend.Controllers
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[LOGIN EMAIL WARNING] Safe log: Failed to dispatch login notification: {ex.Message}");
+                        _logger.LogWarning(ex, "[LOGIN EMAIL WARNING] Failed to dispatch login notification.");
                     }
                 });
             }
@@ -196,6 +202,7 @@ namespace backend.Controllers
             {
                 var userId = GetUserId();
                 var user = await _context.Users
+                    .AsNoTracking()
                     .Include(u => u.Profile)
                     .FirstOrDefaultAsync(u => u.Id == userId);
 
@@ -363,7 +370,8 @@ namespace backend.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = $"Unable to save personal information: {ex.Message}" });
+                _logger.LogError(ex, "Failed to update personal profile.");
+                return BadRequest(new { message = "Unable to save personal information. Please verify input values and try again." });
             }
         }
 
@@ -411,7 +419,8 @@ namespace backend.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error uploading profile photo.", error = ex.Message });
+                _logger.LogError(ex, "Failed to upload profile photo.");
+                return StatusCode(500, new { message = "An error occurred while uploading profile photo." });
             }
         }
 
@@ -482,7 +491,8 @@ namespace backend.Controllers
                     }
                     catch (Exception ex)
                     {
-                        return BadRequest(new { message = "Failed to parse PDF: " + ex.Message });
+                        _logger.LogError(ex, "Failed to parse PDF resume file.");
+                        return BadRequest(new { message = "Failed to parse PDF resume file. Please ensure the document is valid and unencrypted." });
                     }
                 }
                 else if (extension == ".docx")
@@ -507,7 +517,8 @@ namespace backend.Controllers
                     }
                     catch (Exception ex)
                     {
-                        return BadRequest(new { message = "Failed to parse DOCX file: " + ex.Message });
+                        _logger.LogError(ex, "Failed to parse DOCX resume file.");
+                        return BadRequest(new { message = "Failed to parse DOCX resume file. Please ensure the document is valid and unencrypted." });
                     }
                 }
                 else
@@ -621,7 +632,8 @@ namespace backend.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Error analyzing resume: " + ex.Message });
+                _logger.LogError(ex, "Failed to analyze saved resume.");
+                return StatusCode(500, new { message = "An error occurred while analyzing the resume." });
             }
         }
 
@@ -664,6 +676,27 @@ namespace backend.Controllers
                 user.ResetTokenExpiry = DateTime.UtcNow.AddMinutes(15);
                 await _context.SaveChangesAsync();
 
+                // Resolve Frontend Base URL dynamically
+                var frontendBaseUrl = _configuration["Frontend:BaseUrl"] 
+                                      ?? _configuration["FRONTEND_BASE_URL"] 
+                                      ?? Environment.GetEnvironmentVariable("FRONTEND_BASE_URL");
+
+                if (string.IsNullOrWhiteSpace(frontendBaseUrl))
+                {
+                    if (_env.IsDevelopment())
+                    {
+                        frontendBaseUrl = "http://localhost:5173";
+                    }
+                    else
+                    {
+                        _logger.LogError("Frontend:BaseUrl is not configured for production.");
+                        return StatusCode(500, new { message = "Password reset service is temporarily unavailable due to server configuration." });
+                    }
+                }
+
+                frontendBaseUrl = frontendBaseUrl.Trim().TrimEnd('/');
+                var resetLink = $"{frontendBaseUrl}/reset-password?token={Uri.EscapeDataString(token)}";
+
                 // Dispatch Email Notification using existing IEmailService
                 try
                 {
@@ -674,7 +707,7 @@ namespace backend.Controllers
                             <p>Dear User,</p>
                             <p>We received a request to reset your password for your RecruitNexus account. Click the button below to reset it:</p>
                             <div style='text-align: center; margin: 30px 0;'>
-                                <a href='http://localhost:5173/reset-password?token={token}' style='background-color: #0056b3; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Reset Password</a>
+                                <a href='{resetLink}' style='background-color: #0056b3; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Reset Password</a>
                             </div>
                             <p>This link will expire in 15 minutes.</p>
                             <p>If you did not request a password reset, please ignore this email.</p>
@@ -684,7 +717,7 @@ namespace backend.Controllers
 
                     await _emailService.SendEmailAsync(user.Email, subject, body);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Silently log and swallow exception to never crash the API or rollback DB
                 }

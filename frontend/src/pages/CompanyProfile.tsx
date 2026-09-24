@@ -6,6 +6,7 @@ import {
   ArrowLeft, Mail, Phone, ShieldCheck, Award, HeartHandshake 
 } from 'lucide-react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { CompanyLogo } from '../components/CompanyLogo';
 
 export const CompanyProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -76,9 +77,7 @@ export const CompanyProfile: React.FC = () => {
       </div>
 
       <div style={styles.profileHeaderCard}>
-        <div style={styles.logoWrapper}>
-          <Building size={48} color="#2563EB" />
-        </div>
+        <CompanyLogo name={company?.name} logoUrl={company?.logo} size={72} />
         
         <div style={styles.headerInfo}>
           <div style={styles.titleRow}>

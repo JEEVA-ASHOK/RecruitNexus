@@ -1,6 +1,7 @@
 import React from 'react';
-import { Building, MapPin, Briefcase, Star, Search, ArrowUpRight } from 'lucide-react';
+import { MapPin, Briefcase, Star, Search, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { CompanyLogo } from '../components/CompanyLogo';
 
 interface Company {
   id: number;
@@ -117,16 +118,7 @@ export const Companies: React.FC = () => {
         {companies.map((c) => (
           <div key={c.id} className="glass-panel" style={styles.card}>
             <div style={styles.cardHeader}>
-              <div 
-                style={{ 
-                  ...styles.logoPlaceholder, 
-                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                  borderColor: 'rgba(255, 255, 255, 0.06)',
-                  boxShadow: `0 0 15px ${c.logoGlow}20` 
-                }}
-              >
-                <Building size={24} style={{ color: c.logoGlow }} />
-              </div>
+              <CompanyLogo name={c.name} size={48} fallbackColor={c.logoGlow} />
               <div style={{ flex: 1 }}>
                 <h3 style={styles.companyName}>{c.name}</h3>
                 <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>{c.industry}</span>

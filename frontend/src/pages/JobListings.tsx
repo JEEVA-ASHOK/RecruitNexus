@@ -7,10 +7,17 @@ import {
 } from 'lucide-react';
 import { Translate } from '../components/Translate';
 import { t } from '../i18n';
+import { JobSearchBar } from '../components/jobs/JobSearchBar';
+import { JobFilters } from '../components/jobs/JobFilters';
+import { JobResultSummary } from '../components/jobs/JobResultSummary';
+import { recordRecentlyViewedJob } from '../utils/recentlyViewedJobs';
+import { Pagination } from '../components/Pagination';
+import { CompanyLogo } from '../components/CompanyLogo';
 
 interface Job {
   id: number;
   recruiterName: string;
+  companyName?: string;
   title: string;
   description: string;
   requirements: string;
@@ -93,7 +100,7 @@ export const JobListings: React.FC = () => {
     if (localStorage.getItem('token') && userRole === 'Candidate') {
       const { data, error } = await apiRequest('/applications');
       if (!error && data) {
-        setUserApplications(data);
+        setUserApplications(Array.isArray(data) ? data : (data.items || []));
       }
     }
   };
@@ -167,17 +174,24 @@ export const JobListings: React.FC = () => {
     };
   }, []);
 
-  const fetchJobs = async () => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize] = useState(20);
+
+  const fetchJobs = async (page = 1) => {
     setLoading(true);
-    const { data, error } = await apiRequest<Job[]>('/jobs');
+    const { data, error } = await apiRequest<any>(`/jobs?page=${page}&pageSize=${pageSize}`);
     setLoading(false);
     if (!error && data) {
-      setJobs(data);
-      if (data.length > 0) {
+      const jobList = Array.isArray(data) ? data : (data.items || []);
+      setJobs(jobList);
+      setCurrentPage(data.page || page);
+      setTotalPages(data.totalPages || 1);
+      if (jobList.length > 0) {
         const queryParams = new URLSearchParams(window.location.search);
         const urlJobId = queryParams.get('jobId');
-        const found = urlJobId ? data.find(j => j.id === parseInt(urlJobId)) : null;
-        setSelectedJob(found || data[0]);
+        const found = urlJobId ? jobList.find((j: Job) => j.id === parseInt(urlJobId)) : null;
+        setSelectedJob(found || jobList[0]);
       }
     }
   };
@@ -210,6 +224,14 @@ export const JobListings: React.FC = () => {
         setShowApplyModal(false);
         setMsg(null);
       }, 3000);
+    }
+  };
+
+  const handleSelectJob = (job: Job) => {
+    setSelectedJob(job);
+    if (isLoggedIn && userRole === 'Candidate' && user) {
+      const uId = user.id || user.userId;
+      recordRecentlyViewedJob(job, uId);
     }
   };
 
@@ -502,127 +524,20 @@ export const JobListings: React.FC = () => {
     <div style={styles.container}>
       
       {/* ENTERPRISE SEARCH BAR SECTION */}
-      <div style={styles.searchBarSection}>
-        <div style={styles.searchBarContainer}>
-          {/* Field 1: Skills/Designation */}
-          <div style={styles.searchFieldWrapper}>
-            <span style={styles.searchLabel}>Job Title or Skills</span>
-            <div style={styles.inputWrapper}>
-              <Search size={18} color="#6B7280" />
-              <input
-                type="text"
-                placeholder="Title, skills, or company"
-                value={searchWhat}
-                onChange={(e) => setSearchWhat(e.target.value)}
-                style={styles.searchFieldInput}
-              />
-            </div>
-          </div>
-          <div style={styles.searchFieldDivider}></div>
-          
-          {/* Field 2: Location */}
-          <div style={styles.searchFieldWrapper}>
-            <span style={styles.searchLabel}>Location</span>
-            <div style={styles.inputWrapper}>
-              <MapPin size={18} color="#6B7280" />
-              <input
-                type="text"
-                placeholder="City, state, or remote"
-                value={searchWhere}
-                onChange={(e) => setSearchWhere(e.target.value)}
-                style={styles.searchFieldInput}
-              />
-            </div>
-          </div>
-          <div style={styles.searchFieldDivider}></div>
-          
-          {/* Field 3: Experience Dropdown */}
-          <div style={styles.searchFieldWrapper}>
-            <span style={styles.searchLabel}>Experience Level</span>
-            <div style={styles.inputWrapper}>
-              <Briefcase size={18} color="#6B7280" />
-              <select
-                value={selectedExperience}
-                onChange={(e) => setSelectedExperience(e.target.value)}
-                style={styles.searchFieldSelect}
-              >
-                <option value="All">Any Experience</option>
-                <option value="0">Fresher (0 years)</option>
-                <option value="1">1 year</option>
-                <option value="2">2 years</option>
-                <option value="3">3 years</option>
-                <option value="5">5 years</option>
-                <option value="8">8 years</option>
-                <option value="10">10+ years</option>
-              </select>
-            </div>
-          </div>
-          
-          <button className="btn-primary" style={styles.findJobsBtn} onClick={handleFindJobsClick}>
-            Search Jobs
-          </button>
-        </div>
-
-        {/* QUICK CATEGORIES BADGES */}
-        <div style={styles.quickBadgesRow}>
-          {naukriCategories.map((cat, i) => (
-            <button key={i} onClick={cat.action} style={styles.quickBadge}>
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* TOP COMPANIES HIRING NOW */}
-        <div style={styles.brandsContainer}>
-          <span style={styles.brandsLabel}>Featured hiring partners:</span>
-          <div style={styles.brandsRow}>
-            {featuredBrands.map((brand, i) => (
-              <button 
-                key={i} 
-                onClick={() => setSearchWhat(brand.name)} 
-                style={styles.brandCard}
-              >
-                <strong style={{ color: '#111827', fontSize: '0.85rem' }}>{brand.name}</strong>
-                <span style={styles.brandRating}>★ {brand.rating}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Indeed Filter Options */}
-        <div style={styles.filterOptionsRow}>
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            style={styles.filterDropdown}
-          >
-            <option value="All">Job Type: All</option>
-            <option value="FullTime">Full-time</option>
-            <option value="PartTime">Part-time</option>
-            <option value="Remote">Remote</option>
-            <option value="Contract">Contract</option>
-          </select>
-          <select
-            value={selectedDateLimit}
-            onChange={(e) => setSelectedDateLimit(e.target.value)}
-            style={styles.filterDropdown}
-          >
-            <option value="All">Date Posted: All</option>
-            <option value="1">Last 24 hours</option>
-            <option value="3">Last 3 days</option>
-            <option value="7">Last 7 days</option>
-          </select>
-          <select
-            value={selectedSalaryLimit}
-            onChange={(e) => setSelectedSalaryLimit(e.target.value)}
-            style={styles.filterDropdown}
-          >
-            <option value="All">Salary Estimate: All</option>
-            <option value="500000">₹5,00,000+ a year</option>
-            <option value="1000000">₹10,00,000+ a year</option>
-            <option value="2000000">₹20,00,000+ a year</option>
-          </select>
-        </div>
+      <div style={{ marginBottom: '24px' }}>
+        <JobSearchBar
+          searchWhat={searchWhat}
+          setSearchWhat={setSearchWhat}
+          searchWhere={searchWhere}
+          setSearchWhere={setSearchWhere}
+          selectedExperience={selectedExperience}
+          setSelectedExperience={setSelectedExperience}
+          onSearch={() => {}}
+          onClear={clearAllFilters}
+          quickCategories={naukriCategories}
+          featuredBrands={featuredBrands}
+          onSelectBrand={(brandName) => setSearchWhat(brandName)}
+        />
       </div>
 
       {/* NAUKRI 3-COLUMN SPLIT LAYOUT */}
@@ -632,249 +547,77 @@ export const JobListings: React.FC = () => {
         <div style={styles.splitPaneContainer}>
           
           {/* Column 1: Left Filters Sidebar */}
-          <div style={styles.filterSidebar} className="glass-panel">
-            <div style={styles.sidebarHeader}>
-              <strong style={styles.sidebarTitle}>All Filters</strong>
-              {(selectedDepartments.length > 0 || selectedLocations.length > 0 || selectedCompanyTypes.length > 0 || selectedWorkModes.length > 0 || selectedTopCompanies.length > 0 || selectedIndustries.length > 0 || selectedStipends.length > 0 || selectedType !== 'All' || selectedDateLimit !== 'All' || selectedSalaryLimit !== 'All' || selectedExperience !== 'All' || selectedEducation !== 'All') && (
-                <button onClick={clearAllFilters} style={styles.clearBtn}>Clear All</button>
-              )}
-            </div>
-
-            {/* Department Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Department</span>
-              <div style={styles.accordionContent}>
-                {[
-                  { name: 'Data Science & Analytics', count: 18706 },
-                  { name: 'Engineering - Software & QA', count: 8152 },
-                  { name: 'IT & Information Security', count: 578 },
-                  { name: 'Sales & Business Development', count: 554 }
-                ].map((dept) => {
-                  const isChecked = selectedDepartments.includes(dept.name);
-                  return (
-                    <label key={dept.name} style={styles.filterCheckboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          setSelectedDepartments(prev => 
-                            isChecked ? prev.filter(d => d !== dept.name) : [...prev, dept.name]
-                          );
-                        }}
-                        style={styles.checkboxElement}
-                      />
-                      <span>{dept.name}</span>
-                    </label>
-                  );
-                })}
-                <button onClick={() => { setModalSearchQuery(''); setActiveModal('department'); }} style={styles.viewMoreBtn}>
-                  View More
-                </button>
-              </div>
-            </div>
-
-            {/* Experience Slider Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Experience</span>
-              <div style={styles.accordionContent}>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  value={selectedExperience === 'All' ? 10 : parseInt(selectedExperience, 10)}
-                  onChange={(e) => setSelectedExperience(e.target.value === '10' ? 'All' : e.target.value)}
-                  style={styles.sliderRange}
-                />
-                <div style={styles.sliderLabels}>
-                  <span>0 Yrs</span>
-                  <span>{selectedExperience === 'All' ? 'Any' : `${selectedExperience} Yrs`}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Location Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Location</span>
-              <div style={styles.accordionContent}>
-                {[
-                  { name: 'Bengaluru', count: 12850 },
-                  { name: 'Chennai', count: 4120 },
-                  { name: 'Hyderabad', count: 6840 },
-                  { name: 'Pune', count: 4180 }
-                ].map((loc) => {
-                  const isChecked = selectedLocations.includes(loc.name);
-                  return (
-                    <label key={loc.name} style={styles.filterCheckboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          setSelectedLocations(prev => 
-                            isChecked ? prev.filter(l => l !== loc.name) : [...prev, loc.name]
-                          );
-                        }}
-                        style={styles.checkboxElement}
-                      />
-                      <span>{loc.name}</span>
-                    </label>
-                  );
-                })}
-                <button onClick={() => { setModalSearchQuery(''); setActiveModal('location'); }} style={styles.viewMoreBtn}>
-                  View More
-                </button>
-              </div>
-            </div>
-
-            {/* Work Mode Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Work mode</span>
-              <div style={styles.accordionContent}>
-                {[
-                  { name: 'Work from office', count: 22460 },
-                  { name: 'Hybrid', count: 3810 },
-                  { name: 'Remote', count: 1720 }
-                ].map((mode) => {
-                  const isChecked = selectedWorkModes.includes(mode.name);
-                  return (
-                    <label key={mode.name} style={styles.filterCheckboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          setSelectedWorkModes(prev => 
-                            isChecked ? prev.filter(m => m !== mode.name) : [...prev, mode.name]
-                          );
-                        }}
-                        style={styles.checkboxElement}
-                      />
-                      <span>{mode.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Top Companies Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Top companies</span>
-              <div style={styles.accordionContent}>
-                {[
-                  { name: 'Google', count: 9830 },
-                  { name: 'Microsoft', count: 4520 },
-                  { name: 'Wipro', count: 8140 },
-                  { name: 'Zoho', count: 5500 }
-                ].map((comp) => {
-                  const isChecked = selectedTopCompanies.includes(comp.name);
-                  return (
-                    <label key={comp.name} style={styles.filterCheckboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          setSelectedTopCompanies(prev => 
-                            isChecked ? prev.filter(c => c !== comp.name) : [...prev, comp.name]
-                          );
-                        }}
-                        style={styles.checkboxElement}
-                      />
-                      <span>{comp.name}</span>
-                    </label>
-                  );
-                })}
-                <button onClick={() => { setModalSearchQuery(''); setActiveModal('companyType'); }} style={styles.viewMoreBtn}>
-                  View More
-                </button>
-              </div>
-            </div>
-
-            {/* Industry Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Industry</span>
-              <div style={styles.accordionContent}>
-                {[
-                  { label: 'IT Services & Cons.', val: 'IT', count: 22860 },
-                  { label: 'Recruitment / Staffing', val: 'Recruitment', count: 3120 },
-                  { label: 'Financial Services', val: 'Finance', count: 2010 }
-                ].map((ind) => {
-                  const isChecked = selectedIndustries.includes(ind.val);
-                  return (
-                    <label key={ind.val} style={styles.filterCheckboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          setSelectedIndustries(prev => 
-                            isChecked ? prev.filter(i => i !== ind.val) : [...prev, ind.val]
-                          );
-                        }}
-                        style={styles.checkboxElement}
-                      />
-                      <span>{ind.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Stipends / Salary Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Stipend</span>
-              <div style={styles.accordionContent}>
-                {[
-                  { name: 'Unpaid', count: 251 },
-                  { name: '0-10k', count: 4 },
-                  { name: '10k-20k', count: 12 },
-                  { name: '20k-30k', count: 5 }
-                ].map((stipend) => {
-                  const isChecked = selectedStipends.includes(stipend.name);
-                  return (
-                    <label key={stipend.name} style={styles.filterCheckboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          setSelectedStipends(prev => 
-                            isChecked ? prev.filter(s => s !== stipend.name) : [...prev, stipend.name]
-                          );
-                        }}
-                        style={styles.checkboxElement}
-                      />
-                      <span>{stipend.name}</span>
-                    </label>
-                  );
-                })}
-                <button onClick={() => { setModalSearchQuery(''); setActiveModal('stipend'); }} style={styles.viewMoreBtn}>
-                  View More
-                </button>
-              </div>
-            </div>
-
-            {/* Education Accordion */}
-            <div style={styles.accordionSection}>
-              <span style={styles.accordionLabel}>Education</span>
-              <div style={styles.accordionContent}>
-                {[
-                  { label: 'Any Postgraduate', query: 'Postgraduate' },
-                  { label: 'M.Tech', query: 'M.Tech' },
-                  { label: 'Any Graduate', query: 'Graduate' },
-                  { label: 'B.Tech / B.E.', query: 'B.Tech' }
-                ].map((edu, idx) => (
-                  <label key={idx} style={styles.filterCheckboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={selectedEducation === edu.query}
-                      onChange={() => setSelectedEducation(selectedEducation === edu.query ? 'All' : edu.query)}
-                      style={styles.checkboxElement}
-                    />
-                    <span>{edu.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+          <div style={styles.filterSidebar}>
+            <JobFilters
+              selectedType={selectedType}
+              setSelectedType={setSelectedType}
+              selectedDateLimit={selectedDateLimit}
+              setSelectedDateLimit={setSelectedDateLimit}
+              selectedSalaryLimit={selectedSalaryLimit}
+              setSelectedSalaryLimit={setSelectedSalaryLimit}
+              selectedExperience={selectedExperience}
+              setSelectedExperience={setSelectedExperience}
+              selectedDepartments={selectedDepartments}
+              setSelectedDepartments={setSelectedDepartments}
+              selectedLocations={selectedLocations}
+              setSelectedLocations={setSelectedLocations}
+              selectedWorkModes={selectedWorkModes}
+              setSelectedWorkModes={setSelectedWorkModes}
+              selectedTopCompanies={selectedTopCompanies}
+              setSelectedTopCompanies={setSelectedTopCompanies}
+              selectedIndustries={selectedIndustries}
+              setSelectedIndustries={setSelectedIndustries}
+              onClearAll={clearAllFilters}
+              hasActiveFilters={
+                selectedDepartments.length > 0 ||
+                selectedLocations.length > 0 ||
+                selectedCompanyTypes.length > 0 ||
+                selectedWorkModes.length > 0 ||
+                selectedTopCompanies.length > 0 ||
+                selectedIndustries.length > 0 ||
+                selectedStipends.length > 0 ||
+                selectedType !== 'All' ||
+                selectedDateLimit !== 'All' ||
+                selectedSalaryLimit !== 'All' ||
+                selectedExperience !== 'All' ||
+                selectedEducation !== 'All' ||
+                !!searchWhat ||
+                !!searchWhere
+              }
+            />
           </div>
 
           {/* Column 2: Middle Job Cards List */}
           <div style={styles.middlePane}>
+            {/* Active Filters & Results Summary */}
+            <div style={{ marginBottom: '16px' }}>
+              <JobResultSummary
+                totalResults={filteredJobs.length}
+                totalJobsCount={jobs.length}
+                searchWhat={searchWhat}
+                setSearchWhat={setSearchWhat}
+                searchWhere={searchWhere}
+                setSearchWhere={setSearchWhere}
+                selectedType={selectedType}
+                setSelectedType={setSelectedType}
+                selectedExperience={selectedExperience}
+                setSelectedExperience={setSelectedExperience}
+                selectedSalaryLimit={selectedSalaryLimit}
+                setSelectedSalaryLimit={setSelectedSalaryLimit}
+                selectedDateLimit={selectedDateLimit}
+                setSelectedDateLimit={setSelectedDateLimit}
+                selectedDepartments={selectedDepartments}
+                setSelectedDepartments={setSelectedDepartments}
+                selectedLocations={selectedLocations}
+                setSelectedLocations={setSelectedLocations}
+                selectedWorkModes={selectedWorkModes}
+                setSelectedWorkModes={setSelectedWorkModes}
+                selectedTopCompanies={selectedTopCompanies}
+                setSelectedTopCompanies={setSelectedTopCompanies}
+                onClearAll={clearAllFilters}
+              />
+            </div>
+
             {/* Filter by Salary Ribbon */}
             <div style={styles.salaryRibbon}>
               <span style={styles.ribbonTitle}>₹ Filter jobs by salary</span>
@@ -901,22 +644,39 @@ export const JobListings: React.FC = () => {
               </div>
             </div>
 
-            {/* Results metadata row */}
-            <div style={styles.resultsHeaderRow}>
-              <span style={{ fontSize: '1.05rem', fontWeight: 'bold', color: '#6B7280' }}>
-                {searchWhat 
-                  ? `${searchWhat} Opportunities`
-                  : 'Recommended Opportunities'
-                }
-              </span>
-            </div>
-
             {/* Middle Pane Listings Loop */}
             {filteredJobs.length === 0 ? (
-              <div style={styles.noResultsBox}>
-                <AlertCircle size={36} color="#6B7280" style={{ marginBottom: '12px' }} />
-                <h3>No jobs match your search criteria.</h3>
-                <p style={{ fontSize: '0.85rem', color: '#6B7280' }}>Try adjusting your filters or expanding your region.</p>
+              <div 
+                className="glass-panel"
+                style={{
+                  padding: '48px 24px',
+                  textAlign: 'center',
+                  borderRadius: '16px',
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+              >
+                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Search size={32} color="#2563EB" />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+                  No jobs found matching your criteria
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748B', maxWidth: '420px', lineHeight: 1.5 }}>
+                  We couldn't find any open positions matching your current search parameters. Try adjusting your keyword, location, or filtering criteria.
+                </p>
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="btn-primary"
+                  style={{ marginTop: '8px', padding: '10px 24px', fontSize: '0.88rem' }}
+                >
+                  Clear All Filters
+                </button>
               </div>
             ) : (
               filteredJobs.map((job, idx) => {
@@ -947,7 +707,7 @@ export const JobListings: React.FC = () => {
                     )}
 
                     <div
-                      onClick={() => setSelectedJob(job)}
+                      onClick={() => handleSelectJob(job)}
                       className="glass-panel"
                       style={{
                         ...styles.jobCard,
@@ -957,9 +717,7 @@ export const JobListings: React.FC = () => {
                     >
                       <div style={styles.cardHeaderRow}>
                         {/* Company Logo placeholder on the left */}
-                        <div style={{ ...styles.companyLogoBadge, color: logoColor, borderColor: logoColor, marginRight: '4px' }}>
-                          {firstChar}
-                        </div>
+                        <CompanyLogo name={job.companyName || job.recruiterName} size={42} fallbackColor={logoColor} style={{ marginRight: '8px' }} />
 
                         <div style={styles.cardInfoCol}>
                           <h3 style={styles.cardTitle}>{job.title}</h3>
@@ -1026,6 +784,12 @@ export const JobListings: React.FC = () => {
                 );
               })
             )}
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={(p) => fetchJobs(p)}
+            />
           </div>
 
           {/* Right Column: Sticky Job Details Panel */}
@@ -1033,6 +797,7 @@ export const JobListings: React.FC = () => {
             {selectedJob ? (
               <div className="glass-panel" style={styles.detailsStickyPanel}>
                 <div style={styles.detailsHeader}>
+                  <CompanyLogo name={selectedJob.companyName || selectedJob.recruiterName} size={48} style={{ marginBottom: '12px' }} />
                   <h2 style={styles.detailsTitle}>{selectedJob.title}</h2>
                   <div style={styles.detailsCompanyLine}>
                     <span 

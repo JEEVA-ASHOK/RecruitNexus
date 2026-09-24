@@ -67,9 +67,6 @@ namespace backend.Services
 
                 using (var client = new SmtpClient())
                 {
-                    // For development or app passwords, bypass certificate validations if required, or keep default
-                    client.ServerCertificateValidationCallback = (s, c, h, e) => true;
-
                     var secureSocketOption = SecureSocketOptions.StartTls;
                     if (port == 465)
                     {

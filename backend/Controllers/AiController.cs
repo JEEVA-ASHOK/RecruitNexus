@@ -21,11 +21,13 @@ namespace backend.Controllers
     {
         private readonly RecruitmentDbContext _context;
         private readonly IGeminiService _geminiService;
+        private readonly ILogger<AiController> _logger;
 
-        public AiController(RecruitmentDbContext context, IGeminiService geminiService)
+        public AiController(RecruitmentDbContext context, IGeminiService geminiService, ILogger<AiController> logger)
         {
             _context = context;
             _geminiService = geminiService;
+            _logger = logger;
         }
 
         [HttpPost("chat")]
@@ -38,6 +40,11 @@ namespace backend.Controllers
             }
 
             var userId = GetUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
             var role = GetUserRole();
 
             // Fetch context data based on the user's role
@@ -49,7 +56,7 @@ namespace backend.Controllers
                     .Include(u => u.Profile)
                     .Include(u => u.Applications)
                     .ThenInclude(a => a.Job)
-                    .FirstOrDefaultAsync(u => u.Id == userId);
+                    .FirstOrDefaultAsync(u => u.Id == userId.Value);
 
                 if (user != null)
                 {
@@ -81,7 +88,7 @@ Submitted Applications:
                     .Include(u => u.CreatedJobs)
                     .ThenInclude(j => j.Applications)
                     .ThenInclude(a => a.Candidate)
-                    .FirstOrDefaultAsync(u => u.Id == userId);
+                    .FirstOrDefaultAsync(u => u.Id == userId.Value);
 
                 if (user != null)
                 {
@@ -169,7 +176,7 @@ System Overview Statistics:
                 {
                     try
                     {
-                        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", resumePath);
+                        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", resumePath);
                         if (System.IO.File.Exists(fullPath))
                         {
                             using var pdf = UglyToad.PdfPig.PdfDocument.Open(fullPath);
@@ -201,8 +208,9 @@ System Overview Statistics:
 
                 return Ok(result);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to generate interview questions via Gemini.");
                 return Ok(new InterviewQuestionsResult());
             }
         }
@@ -256,7 +264,7 @@ System Overview Statistics:
                 {
                     try
                     {
-                        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", resumePath);
+                        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", resumePath);
                         if (System.IO.File.Exists(fullPath))
                         {
                             using var pdf = UglyToad.PdfPig.PdfDocument.Open(fullPath);
@@ -306,6 +314,7 @@ System Overview Statistics:
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to generate hiring decision via Gemini.");
                 return Ok(new HiringDecisionResult
                 {
                     Recommendation = application.MatchingScore >= 85 ? "Hire" : application.MatchingScore >= 70 ? "Consider" : "Reject",
@@ -360,8 +369,9 @@ System Overview Statistics:
 
                 return Ok(new { offerLetterContent });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to generate offer letter via Gemini.");
                 return Ok(new { offerLetterContent = $"CONFIDENTIAL OFFER LETTER\n\nDate: {DateTime.UtcNow:MMMM dd, yyyy}\n\nTo: {candidateName}\n\nSubject: Job Offer - {jobTitle} at {companyName}\n\nDear {candidateName},\n\nWe are pleased to offer you the position of '{jobTitle}' at {companyName}.\n\nCompensation Package: {salaryRange}\nLocation: {location}\nEmployment Type: {jobType}\n\nPlease review and confirm your acceptance within 7 calendar days.\n\nSincerely,\nHR Talent Acquisition Team\n{companyName}" });
             }
         }
@@ -404,8 +414,9 @@ System Overview Statistics:
 
                 return Ok(result);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Failed to generate onboarding plan via Gemini.");
                 return Ok(new OnboardingPlanResult
                 {
                     WelcomeMessage = $"Welcome to {companyName}, {candidateName}! We are thrilled to have you join our team as a {jobTitle}.",
@@ -420,14 +431,16 @@ System Overview Statistics:
             }
         }
 
-        private int GetUserId()
+        private int? GetUserId()
         {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirst("sub")
+                     ?? User.FindFirst("id");
             if (claim != null && int.TryParse(claim.Value, out int id))
             {
                 return id;
             }
-            throw new UnauthorizedAccessException();
+            return null;
         }
 
         private string GetUserRole()

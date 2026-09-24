@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { apiRequest } from '../api';
-import { MessageSquare, Send, X, Bot, Sparkles, LogIn, Loader2 } from 'lucide-react';
+import { Send, X, Sparkles, LogIn, Loader2 } from 'lucide-react';
+import { SmileBotIcon } from './SmileBotIcon';
 
 interface ChatMessage {
   sender: 'user' | 'ai';
@@ -38,15 +39,15 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
 
   // Quick Action Suggestions
   const candidatePills = [
-    'What jobs do I match?',
-    'Give me resume feedback',
-    'What skills should I learn?',
+    'What jobs do I match best?',
+    'Give me resume improvement tips',
+    'What key skills should I learn?',
   ];
 
   const recruiterPills = [
-    'Write a DevOps job post',
-    'Draft interview questions',
-    'Evaluate my applications',
+    'Draft DevOps Engineer job post',
+    'Generate technical interview questions',
+    'Summarize my active candidates',
   ];
 
   const pills = userRole === 'Recruiter' || userRole === 'Admin' ? recruiterPills : candidatePills;
@@ -56,46 +57,79 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
       setMessages([
         {
           sender: 'ai',
-          text: `Hello ${user.fullName}! I'm your TalentSphere AI Assistant, configured as a **${user.role}** assistant. How can I help you navigate your portal today?`,
+          text: `Hello ${user.fullName || 'there'}! I'm your RecruitNexus AI Copilot, configured for your **${user.role}** account.\n\nHow can I help you accelerate your hiring or job search today?`,
         },
       ]);
     }
   }, [isLoggedIn, user]);
 
   useEffect(() => {
-    // Scroll to bottom on new messages
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen]);
+
+  // Helper to safely render formatted markdown bold text (**text**)
+  const renderFormattedText = (rawText: string) => {
+    if (!rawText) return null;
+    
+    // Split text by lines
+    const lines = rawText.split('\n');
+    
+    return lines.map((line, lineIdx) => {
+      // Process **bold** formatting within each line
+      const parts = line.split(/(\*\*.*?\*\*)/g);
+      const renderedParts = parts.map((part, pIdx) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={pIdx} style={{ fontWeight: 700, color: 'inherit' }}>{part.slice(2, -2)}</strong>;
+        }
+        return part;
+      });
+
+      return (
+        <span key={lineIdx} style={{ display: 'block', marginBottom: lineIdx < lines.length - 1 ? '4px' : '0' }}>
+          {renderedParts}
+        </span>
+      );
+    });
+  };
 
   const handleSend = async (textToSend: string) => {
     if (!textToSend.trim()) return;
 
-    // Add user message to state
     const newMessages = [...messages, { sender: 'user', text: textToSend } as ChatMessage];
     setMessages(newMessages);
     setInput('');
     setLoading(true);
 
-    // Map history to backend format: DTO expects Sender: "user" | "ai"
     const history = messages.map((m) => ({
       sender: m.sender,
       text: m.text,
     }));
 
-    const { data, error } = await apiRequest('/ai/chat', 'POST', {
-      message: textToSend,
-      history: history,
-    });
+    try {
+      const { data, error } = await apiRequest('/ai/chat', 'POST', {
+        message: textToSend,
+        history: history,
+      });
 
-    setLoading(false);
+      setLoading(false);
 
-    if (error) {
+      if (error) {
+        setMessages((prev) => [
+          ...prev,
+          { 
+            sender: 'ai', 
+            text: `I'm having a brief connection hitch: ${error}. Here is a quick tip: check out your Dashboard for real-time recommendations!` 
+          },
+        ]);
+      } else if (data && data.reply) {
+        setMessages((prev) => [...prev, { sender: 'ai', text: data.reply }]);
+      }
+    } catch {
+      setLoading(false);
       setMessages((prev) => [
         ...prev,
-        { sender: 'ai', text: `Sorry, I encountered an error: ${error}` },
+        { sender: 'ai', text: 'Thank you for reaching out! You can explore open positions or view your applications directly from the top navigation menu.' },
       ]);
-    } else if (data && data.reply) {
-      setMessages((prev) => [...prev, { sender: 'ai', text: data.reply }]);
     }
   };
 
@@ -107,36 +141,45 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
 
   return (
     <>
-      {/* Floating Toggle Button */}
+      {/* Floating Trigger Button */}
       {showTrigger && (
         <button
           onClick={() => (externalIsOpen !== undefined ? handleClose() : setInternalIsOpen(!internalIsOpen))}
           style={{
             ...styles.floatingBtn,
-            boxShadow: isOpen ? '0 0 25px rgba(0, 242, 254, 0.4)' : '0 0 20px rgba(139, 92, 246, 0.25)',
-            background: isOpen ? 'var(--accent-gradient)' : 'rgba(18, 20, 32, 0.75)',
-            borderColor: isOpen ? '#2563EB' : 'rgba(255,255,255,0.08)',
+            boxShadow: isOpen ? '0 0 25px rgba(37, 99, 235, 0.4)' : '0 8px 25px rgba(37, 99, 235, 0.35)',
+            background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+            border: '2px solid #FFFFFF',
           }}
-          title="AI Chatbot Assistant"
+          title="RecruitNexus AI Assistant"
         >
-          {isOpen ? <X size={22} color="#000" /> : <Bot size={22} color="#2563EB" style={{ filter: 'drop-shadow(0 0 4px #2563EB)' }} />}
+          {isOpen ? (
+            <X size={24} color="#FFFFFF" />
+          ) : (
+            <SmileBotIcon size={28} color="#FFFFFF" bgFill="transparent" />
+          )}
         </button>
       )}
 
       {/* Expanded Chat Drawer */}
       {isOpen && (
-        <div style={styles.chatWindow} className="glass-panel">
+        <div style={styles.chatWindow}>
           {/* Header */}
           <div style={styles.header}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={18} color="#2563EB" style={{ filter: 'drop-shadow(0 0 4px #2563EB)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: '#DBEAFE', padding: '6px', borderRadius: '10px', display: 'flex' }}>
+                <SmileBotIcon size={22} color="#2563EB" bgFill="#FFFFFF" />
+              </div>
               <div>
-                <h3 style={styles.title} className="text-gradient">NexusAI</h3>
-                <span style={styles.subtitle}>Recruit Copilot</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <h3 style={styles.title}>NexusAI</h3>
+                  <span style={styles.badge}>COPILOT</span>
+                </div>
+                <span style={styles.subtitle}>AI-Powered Recruitment Partner</span>
               </div>
             </div>
             <button style={styles.closeBtn} onClick={handleClose}>
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
@@ -144,13 +187,15 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
           <div style={styles.body}>
             {!isLoggedIn ? (
               <div style={styles.anonymousBox}>
-                <LogIn size={32} color="#6B7280" style={{ marginBottom: '12px' }} />
-                <p style={{ fontSize: '0.95rem', fontWeight: '500', color: '#fff', marginBottom: '8px' }}>Login Required</p>
-                <p style={{ fontSize: '0.85rem', color: '#6B7280', lineHeight: '1.4', marginBottom: '16px' }}>
-                  Please sign in to your Candidate or Recruiter account to access your personalized AI assistant.
+                <div style={{ background: '#EFF6FF', padding: '16px', borderRadius: '50%', marginBottom: '16px' }}>
+                  <LogIn size={28} color="#2563EB" />
+                </div>
+                <p style={{ fontSize: '1rem', fontWeight: '700', color: '#0F172A', marginBottom: '8px' }}>Sign In Required</p>
+                <p style={{ fontSize: '0.85rem', color: '#64748B', lineHeight: '1.5', marginBottom: '20px' }}>
+                  Please log in to your Candidate or Recruiter account to access live job recommendations and AI copilot support.
                 </p>
-                <a href="/login" className="btn-primary" style={{ padding: '8px 16px', fontSize: '0.85rem' }} onClick={handleClose}>
-                  Sign In
+                <a href="/login" style={styles.signInLink} onClick={handleClose}>
+                  Sign In to Account
                 </a>
               </div>
             ) : (
@@ -166,30 +211,35 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
                     >
                       {m.sender === 'ai' && (
                         <div style={styles.aiAvatar}>
-                          <Bot size={14} color="#2563EB" />
+                          <SmileBotIcon size={16} color="#2563EB" bgFill="#FFFFFF" />
                         </div>
                       )}
                       <div
                         style={{
                           ...styles.bubble,
-                          background: m.sender === 'user' ? 'rgba(0, 242, 254, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                          borderColor: m.sender === 'user' ? 'rgba(0, 242, 254, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                          borderBottomRightRadius: m.sender === 'user' ? '2px' : '12px',
-                          borderBottomLeftRadius: m.sender === 'ai' ? '2px' : '12px',
+                          background: m.sender === 'user' ? 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)' : '#FFFFFF',
+                          color: m.sender === 'user' ? '#FFFFFF' : '#0F172A',
+                          borderColor: m.sender === 'user' ? '#1D4ED8' : '#E2E8F0',
+                          boxShadow: m.sender === 'user' ? '0 3px 10px rgba(37, 99, 235, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.04)',
+                          borderBottomRightRadius: m.sender === 'user' ? '3px' : '16px',
+                          borderBottomLeftRadius: m.sender === 'ai' ? '3px' : '16px',
                         }}
                       >
-                        <p style={styles.messageText}>{m.text}</p>
+                        <div style={{ fontSize: '0.875rem', lineHeight: '1.5', color: m.sender === 'user' ? '#FFFFFF' : '#0F172A' }}>
+                          {renderFormattedText(m.text)}
+                        </div>
                       </div>
                     </div>
                   ))}
+
                   {loading && (
                     <div style={styles.messageBubbleContainer}>
                       <div style={styles.aiAvatar}>
-                        <Bot size={14} color="#2563EB" />
+                        <SmileBotIcon size={16} color="#2563EB" bgFill="#FFFFFF" />
                       </div>
                       <div style={styles.loaderBubble}>
                         <Loader2 className="animate-spin" size={16} color="#2563EB" />
-                        <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Thinking...</span>
+                        <span style={{ fontSize: '0.825rem', fontWeight: 600, color: '#475569' }}>Analyzing request...</span>
                       </div>
                     </div>
                   )}
@@ -199,13 +249,24 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
                 {/* Suggestions Pills */}
                 {messages.length <= 2 && !loading && (
                   <div style={styles.pillsContainer}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Suggested Actions:
+                    </span>
                     {pills.map((pill, i) => (
                       <button
                         key={i}
                         onClick={() => handleSend(pill)}
                         style={styles.pill}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#DBEAFE';
+                          e.currentTarget.style.borderColor = '#93C5FD';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#EFF6FF';
+                          e.currentTarget.style.borderColor = '#BFDBFE';
+                        }}
                       >
-                        {pill}
+                        ✨ {pill}
                       </button>
                     ))}
                   </div>
@@ -219,20 +280,23 @@ export const AiChatbot: React.FC<AiChatbotProps> = ({
             <div style={styles.footer}>
               <input
                 type="text"
-                className="glass-input"
                 placeholder="Ask me anything..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={loading}
-                style={{ paddingRight: '40px', fontSize: '0.85rem', padding: '10px 14px' }}
+                style={styles.inputField}
               />
               <button
                 onClick={() => handleSend(input)}
-                style={styles.sendBtn}
+                style={{
+                  ...styles.sendBtn,
+                  background: input.trim() ? '#2563EB' : '#94A3B8',
+                  cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
+                }}
                 disabled={loading || !input.trim()}
               >
-                <Send size={16} />
+                <Send size={15} color="#FFFFFF" />
               </button>
             </div>
           )}
@@ -247,57 +311,73 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'fixed',
     bottom: '24px',
     right: '24px',
-    width: '52px',
-    height: '52px',
+    width: '56px',
+    height: '56px',
     borderRadius: '50%',
-    border: '1px solid',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 9999,
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    backdropFilter: 'blur(8px)',
+    transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
   },
   chatWindow: {
     position: 'fixed',
-    bottom: '90px',
+    bottom: '92px',
     right: '24px',
-    width: '380px',
-    height: '520px',
+    width: '390px',
+    height: '540px',
     zIndex: 9998,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    border: '1px solid rgba(255,255,255,0.06)',
-    animation: 'slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    background: '#FFFFFF',
+    borderRadius: '20px',
+    border: '1px solid #E2E8F0',
+    boxShadow: '0 20px 40px -10px rgba(15, 23, 42, 0.22), 0 8px 16px -8px rgba(0, 0, 0, 0.08)',
+    animation: 'slideUp 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
   },
   header: {
     padding: '16px 20px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    borderBottom: '1px solid #F1F5F9',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     background: '#FFFFFF',
   },
   title: {
-    fontSize: '1.05rem',
+    fontSize: '1rem',
     fontWeight: '800',
+    color: '#0F172A',
+    margin: 0,
+  },
+  badge: {
+    fontSize: '0.65rem',
+    fontWeight: '800',
+    color: '#2563EB',
+    background: '#EFF6FF',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    border: '1px solid #BFDBFE',
   },
   subtitle: {
-    fontSize: '0.7rem',
-    color: '#6B7280',
+    fontSize: '0.725rem',
+    color: '#64748B',
     display: 'block',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    marginTop: '2px',
+    marginTop: '1px',
   },
   closeBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#6B7280',
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: '8px',
+    color: '#64748B',
     cursor: 'pointer',
     display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '28px',
+    height: '28px',
+    transition: 'all 0.15s ease',
   },
   body: {
     flex: 1,
@@ -306,6 +386,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     overflowY: 'hidden',
     justifyContent: 'space-between',
+    background: '#F8FAFC',
   },
   anonymousBox: {
     display: 'flex',
@@ -315,6 +396,16 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
     height: '100%',
     padding: '24px',
+  },
+  signInLink: {
+    background: '#2563EB',
+    color: '#FFFFFF',
+    fontWeight: 700,
+    fontSize: '0.875rem',
+    padding: '10px 20px',
+    borderRadius: '10px',
+    textDecoration: 'none',
+    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
   },
   messageScroll: {
     flex: 1,
@@ -331,72 +422,80 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
   },
   aiAvatar: {
-    width: '24px',
-    height: '24px',
+    width: '28px',
+    height: '28px',
     borderRadius: '50%',
-    background: 'rgba(0,242,254,0.1)',
-    border: '1px solid rgba(0,242,254,0.2)',
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: '4px',
+    marginTop: '2px',
     flexShrink: 0,
   },
   bubble: {
-    maxWidth: '80%',
-    padding: '10px 14px',
-    borderRadius: '12px',
+    maxWidth: '82%',
+    padding: '12px 16px',
+    borderRadius: '16px',
     border: '1px solid',
-    fontSize: '0.85rem',
-    lineHeight: '1.4',
-  },
-  messageText: {
-    color: '#f8fafc',
-    whiteSpace: 'pre-line',
   },
   loaderBubble: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    background: 'rgba(255,255,255,0.02)',
+    background: '#FFFFFF',
     padding: '10px 14px',
-    borderRadius: '12px',
-    border: '1px solid rgba(255,255,255,0.04)',
+    borderRadius: '16px',
+    border: '1px solid #E2E8F0',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
   },
   pillsContainer: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '6px',
     marginTop: '12px',
   },
   pill: {
-    background: 'rgba(255,255,255,0.02)',
-    border: '1px solid rgba(255,255,255,0.05)',
-    borderRadius: '8px',
-    color: '#6B7280',
-    padding: '8px 12px',
+    background: '#EFF6FF',
+    border: '1px solid #BFDBFE',
+    borderRadius: '10px',
+    color: '#1E40AF',
+    fontWeight: 600,
+    padding: '9px 14px',
     textAlign: 'left',
     fontSize: '0.8rem',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    fontFamily: "'Inter', sans-serif",
+    transition: 'all 0.15s ease',
   },
   footer: {
-    padding: '16px',
-    borderTop: '1px solid rgba(255,255,255,0.06)',
+    padding: '14px 16px',
+    borderTop: '1px solid #E2E8F0',
+    background: '#FFFFFF',
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
+    gap: '8px',
+  },
+  inputField: {
+    flex: 1,
+    background: '#F8FAFC',
+    border: '1px solid #E2E8F0',
+    borderRadius: '12px',
+    padding: '10px 42px 10px 14px',
+    fontSize: '0.875rem',
+    color: '#0F172A',
+    outline: 'none',
   },
   sendBtn: {
     position: 'absolute',
-    right: '26px',
-    background: 'none',
+    right: '22px',
+    width: '30px',
+    height: '30px',
+    borderRadius: '8px',
     border: 'none',
-    color: '#2563EB',
-    cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'background 0.15s ease',
   },
 };

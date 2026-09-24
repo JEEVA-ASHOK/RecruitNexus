@@ -33,10 +33,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   // Generate notifications dynamically from existing data
   useEffect(() => {
     const list: NotificationItem[] = [];
+    const appList = Array.isArray(applications) ? applications : ((applications as any)?.items || []);
+    const intList = Array.isArray(interviews) ? interviews : ((interviews as any)?.items || []);
 
     if (isRecruiter) {
       // Recruiter Notifications
-      applications.forEach((app) => {
+      appList.forEach((app: any) => {
         list.push({
           id: `app-rec-${app.id}`,
           title: 'New Application Received',
@@ -58,7 +60,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         }
       });
 
-      interviews.forEach((i) => {
+      intList.forEach((i: any) => {
         list.push({
           id: `int-rec-${i.id}`,
           title: 'Interview Scheduled',
@@ -70,7 +72,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       });
     } else {
       // Candidate Notifications
-      applications.forEach((app) => {
+      appList.forEach((app: any) => {
         list.push({
           id: `app-can-${app.id}`,
           title: 'Job Application Sent',
@@ -92,7 +94,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         }
       });
 
-      interviews.forEach((i) => {
+      intList.forEach((i: any) => {
         list.push({
           id: `int-can-${i.id}`,
           title: 'Interview Scheduled',

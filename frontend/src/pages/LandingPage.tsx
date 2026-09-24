@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiRequest } from '../api';
+import { CompanyLogo } from '../components/CompanyLogo';
+import { CompanyOrbitSphere } from '../components/CompanyOrbitSphere';
 import { 
   Search, MapPin, Briefcase, ArrowUpRight, Sparkles, Bot, 
   BrainCircuit, FileText, ShieldCheck, 
@@ -584,19 +586,20 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 6. TRUSTED ENTERPRISE HIRING PARTNERS */}
+      {/* 6. TRUSTED ENTERPRISE HIRING PARTNERS & 360 ORBIT SPHERE */}
       <section style={styles.section}>
         <div style={styles.sectionHeader}>
           <h2 style={styles.sectionTitle}>Featured Hiring Partners</h2>
           <p style={styles.sectionSubtitle}>Top technology leaders actively recruiting talent through the RecruitNexus ecosystem</p>
         </div>
+
+        {/* Dynamic 360-Degree Revolving Company Orbit Sphere */}
+        <CompanyOrbitSphere brands={featuredBrands} />
         <div style={styles.companiesGrid}>
           {featuredBrands.map((brand, idx) => (
             <div key={idx} style={styles.companyCard}>
               <div style={styles.companyHeader}>
-                <div style={{ ...styles.companyLogo, borderColor: brand.logoColor }}>
-                  <Building size={20} color={brand.logoColor} />
-                </div>
+                <CompanyLogo name={brand.name} size={42} fallbackColor={brand.logoColor} />
                 <div>
                   <h3 style={styles.companyName}>{brand.name}</h3>
                   <span style={styles.companyRating}>★ {brand.rating} Rating</span>

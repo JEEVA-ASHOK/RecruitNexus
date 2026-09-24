@@ -18,6 +18,10 @@ import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { CompanyProfile } from './pages/CompanyProfile';
+import { SavedJobs } from './pages/SavedJobs';
+import { Employers } from './pages/Employers';
+import { AccountSettings } from './pages/AccountSettings';
+import { WelcomeCelebrationBanner } from './components/WelcomeCelebrationBanner';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -70,11 +74,28 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <AccountSettings />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/saved-jobs" 
+              element={
+                <ProtectedRoute>
+                  <SavedJobs />
+                </ProtectedRoute>
+              } 
+            />
             <Route path="/companies" element={<Companies />} />
             <Route path="/company/:id" element={<CompanyProfile />} />
             <Route path="/ai-tools" element={<AiTools />} />
             <Route path="/resources" element={<Resources />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/employers" element={<Employers />} />
             {/* Fallback to Job Listings */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -82,6 +103,7 @@ function App() {
         <footer style={styles.footer}>
           <p>© {new Date().getFullYear()} RecruitNexus - AI Recruitment Portal. All rights reserved.</p>
         </footer>
+        <WelcomeCelebrationBanner />
         <FloatingAiAssistant />
         <AutoLogoutManager />
       </div>

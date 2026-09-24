@@ -1,5 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using backend.Data;
@@ -54,12 +56,32 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Setup CORS
+// Setup CORS (Dynamic origins with local development fallback)
+var allowedOrigins = new List<string> { "http://localhost:5173" };
+
+var configOrigins = builder.Configuration["Cors:AllowedOrigins"] 
+                    ?? builder.Configuration["CORS_ALLOWED_ORIGINS"]
+                    ?? Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+
+if (!string.IsNullOrWhiteSpace(configOrigins))
+{
+    var parsedOrigins = configOrigins.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                                     .Select(o => o.Trim())
+                                     .Where(o => !string.IsNullOrWhiteSpace(o));
+    foreach (var origin in parsedOrigins)
+    {
+        if (!allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        {
+            allowedOrigins.Add(origin);
+        }
+    }
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins.ToArray())
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -89,7 +111,7 @@ builder.Services.AddDbContext<RecruitmentDbContext>(options =>
 });
 
 // Configure JWT Authentication
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyRecruitmentPortal2026!!!";
+var jwtSecret = backend.Controllers.JwtHelper.GetJwtSecret(builder.Configuration, builder.Environment);
 var key = Encoding.ASCII.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(options =>
@@ -139,6 +161,24 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
+
+app.UseExceptionHandler(exceptionHandlerApp =>
+{
+    exceptionHandlerApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+
+        var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+        if (exceptionHandlerPathFeature?.Error != null)
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogError(exceptionHandlerPathFeature.Error, "Unhandled exception occurred while processing request path {Path}", exceptionHandlerPathFeature.Path);
+        }
+
+        await context.Response.WriteAsJsonAsync(new { message = "An error occurred while processing your request." });
+    });
+});
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>

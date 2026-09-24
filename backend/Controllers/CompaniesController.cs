@@ -23,16 +23,43 @@ namespace backend.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllCompanies()
+        public async Task<IActionResult> GetAllCompanies([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] bool all = false)
         {
-            var companies = await _context.Companies.ToListAsync();
-            return Ok(companies);
+            page = page < 1 ? 1 : page;
+            if (!all)
+            {
+                pageSize = pageSize < 1 ? 20 : (pageSize > 100 ? 100 : pageSize);
+            }
+
+            var query = _context.Companies
+                .AsNoTracking()
+                .OrderBy(c => c.Name)
+                .ThenBy(c => c.Id);
+
+            var totalCount = await query.CountAsync();
+
+            List<Company> items;
+            if (all)
+            {
+                items = await query.ToListAsync();
+                pageSize = totalCount > 0 ? totalCount : 20;
+            }
+            else
+            {
+                items = await query
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+            }
+
+            var response = PaginatedResponse<Company>.Create(items, totalCount, page, pageSize);
+            return Ok(response);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetCompanyById(int id)
         {
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Id == id);
+            var company = await _context.Companies.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id);
             if (company == null)
             {
                 return NotFound(new { message = "Company not found." });
@@ -78,13 +105,18 @@ namespace backend.Controllers
         public async Task<IActionResult> GetMyCompany()
         {
             var userId = GetUserId();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (!userId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value);
             if (user == null || user.CompanyId == null)
             {
                 return NotFound(new { message = "Recruiter does not belong to any company." });
             }
 
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Id == user.CompanyId);
+            var company = await _context.Companies.AsNoTracking().FirstOrDefaultAsync(c => c.Id == user.CompanyId);
             if (company == null)
             {
                 return NotFound(new { message = "Company not found." });
@@ -98,7 +130,12 @@ namespace backend.Controllers
         public async Task<IActionResult> UpdateMyCompany([FromBody] CompanyUpdateRequest request)
         {
             var userId = GetUserId();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (!userId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value);
             if (user == null || user.CompanyId == null)
             {
                 return NotFound(new { message = "Recruiter does not belong to any company." });
@@ -118,17 +155,32 @@ namespace backend.Controllers
             company.About = request.About ?? company.About;
 
             await _context.SaveChangesAsync();
-            return Ok(new { message = "Company profile updated successfully.", company });
+            return Ok(new
+            {
+                message = "Company profile updated successfully.",
+                company = new
+                {
+                    Id = company.Id,
+                    Name = company.Name,
+                    Logo = company.Logo,
+                    Industry = company.Industry,
+                    Website = company.Website,
+                    Location = company.Location,
+                    About = company.About
+                }
+            });
         }
 
-        private int GetUserId()
+        private int? GetUserId()
         {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirst("sub")
+                     ?? User.FindFirst("id");
             if (claim != null && int.TryParse(claim.Value, out int id))
             {
                 return id;
             }
-            throw new UnauthorizedAccessException();
+            return null;
         }
     }
 

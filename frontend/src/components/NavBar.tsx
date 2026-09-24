@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Clock, ChevronDown, Settings, Check, UserCheck, FileText } from 'lucide-react';
+import { Briefcase, User as UserIcon, LogOut, LayoutDashboard, Globe, Clock, ChevronDown, Settings, Check, UserCheck, FileText, Bookmark } from 'lucide-react';
 import { t } from '../i18n';
 import { apiRequest } from '../api';
 import { NotificationCenter } from './NotificationCenter';
@@ -51,10 +51,16 @@ export const NavBar: React.FC = () => {
   const reloadNavData = () => {
     if (user) {
       apiRequest('/applications').then(({ data }) => {
-        if (data) setNavApplications(data);
+        if (data) {
+          const list = Array.isArray(data) ? data : (data.items || []);
+          setNavApplications(list);
+        }
       });
       apiRequest('/interviews').then(({ data }) => {
-        if (data) setNavInterviews(data);
+        if (data) {
+          const list = Array.isArray(data) ? data : (data.items || []);
+          setNavInterviews(list);
+        }
       });
     }
   };
@@ -163,74 +169,51 @@ export const NavBar: React.FC = () => {
         <div style={styles.navLinks}>
           <Link 
             to="/" 
-            style={{ 
-              ...styles.link, 
-              color: isActive('/') ? '#2563EB' : '#4B5563',
-              fontWeight: isActive('/') ? 700 : 500,
-              borderBottom: isActive('/') ? '2px solid #2563EB' : '2px solid transparent',
-            }}
+            className={`nav-item-link ${isActive('/') ? 'active-link' : ''}`}
           >
             Home
           </Link>
           
           <Link 
             to="/jobs" 
-            style={{ 
-              ...styles.link, 
-              color: isActive('/jobs') ? '#2563EB' : '#4B5563',
-              fontWeight: isActive('/jobs') ? 700 : 500,
-              borderBottom: isActive('/jobs') ? '2px solid #2563EB' : '2px solid transparent',
-            }}
+            className={`nav-item-link ${isActive('/jobs') ? 'active-link' : ''}`}
           >
             {t('find_jobs')}
           </Link>
 
           <Link 
             to="/companies" 
-            style={{ 
-              ...styles.link, 
-              color: isActive('/companies') ? '#2563EB' : '#4B5563',
-              fontWeight: isActive('/companies') ? 700 : 500,
-              borderBottom: isActive('/companies') ? '2px solid #2563EB' : '2px solid transparent',
-            }}
+            className={`nav-item-link ${isActive('/companies') ? 'active-link' : ''}`}
           >
             Companies
           </Link>
 
           <Link 
             to="/ai-tools" 
-            style={{ 
-              ...styles.link, 
-              color: isActive('/ai-tools') ? '#2563EB' : '#4B5563',
-              fontWeight: isActive('/ai-tools') ? 700 : 500,
-              borderBottom: isActive('/ai-tools') ? '2px solid #2563EB' : '2px solid transparent',
-            }}
+            className={`nav-item-link ${isActive('/ai-tools') ? 'active-link' : ''}`}
           >
             AI Tools
           </Link>
 
           <Link 
             to="/resources" 
-            style={{ 
-              ...styles.link, 
-              color: isActive('/resources') ? '#2563EB' : '#4B5563',
-              fontWeight: isActive('/resources') ? 700 : 500,
-              borderBottom: isActive('/resources') ? '2px solid #2563EB' : '2px solid transparent',
-            }}
+            className={`nav-item-link ${isActive('/resources') ? 'active-link' : ''}`}
           >
             Resources
           </Link>
 
           <Link 
             to="/pricing" 
-            style={{ 
-              ...styles.link, 
-              color: isActive('/pricing') ? '#2563EB' : '#4B5563',
-              fontWeight: isActive('/pricing') ? 700 : 500,
-              borderBottom: isActive('/pricing') ? '2px solid #2563EB' : '2px solid transparent',
-            }}
+            className={`nav-item-link ${isActive('/pricing') ? 'active-link' : ''}`}
           >
             Pricing
+          </Link>
+
+          <Link 
+            to="/employers" 
+            className={`nav-employers-btn ${isActive('/employers') ? 'active-link' : ''}`}
+          >
+            For Employers
           </Link>
 
           {/* USER PROFILE SECTION WITH INTEGRATED LANGUAGE SUBMENU */}
@@ -298,6 +281,15 @@ export const NavBar: React.FC = () => {
                     </div>
 
                     <Link 
+                      to="/saved-jobs" 
+                      onClick={() => setShowProfileMenu(false)}
+                      style={styles.menuItem}
+                    >
+                      <Bookmark size={16} color="#2563EB" />
+                      <span>Saved Jobs</span>
+                    </Link>
+
+                    <Link 
                       to="/dashboard" 
                       onClick={() => setShowProfileMenu(false)}
                       style={styles.menuItem}
@@ -316,7 +308,7 @@ export const NavBar: React.FC = () => {
                     </Link>
 
                     <Link 
-                      to="/dashboard" 
+                      to="/settings" 
                       onClick={() => setShowProfileMenu(false)}
                       style={styles.menuItem}
                     >

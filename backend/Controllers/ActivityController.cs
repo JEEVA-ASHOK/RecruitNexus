@@ -42,6 +42,7 @@ namespace backend.Controllers
 
             // A. Read Applications belonging to the authenticated candidate
             var applications = await _context.Applications
+                .AsNoTracking()
                 .Include(a => a.Job)
                 .ThenInclude(j => j.Company)
                 .Where(a => a.CandidateId == userId)
@@ -64,6 +65,7 @@ namespace backend.Controllers
 
             // B. Read Interviews belonging to applications of the authenticated candidate
             var interviews = await _context.Interviews
+                .AsNoTracking()
                 .Include(i => i.Application)
                 .ThenInclude(a => a.Job)
                 .ThenInclude(j => j.Company)
@@ -87,7 +89,7 @@ namespace backend.Controllers
             }
 
             // C. Read Authenticated User Registration Record
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
             if (user != null)
             {
                 activities.Add(new ActivityDto

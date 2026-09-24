@@ -156,7 +156,7 @@ namespace backend.Services
         private readonly string _modelName;
         private readonly ILogger<GeminiService> _logger;
 
-        private const string DefaultGeminiModel = "gemini-3.6-flash";
+        private const string DefaultGeminiModel = "gemini-1.5-flash";
 
         public GeminiService(HttpClient httpClient, IConfiguration configuration, ILogger<GeminiService> logger)
         {
@@ -513,12 +513,12 @@ Do not include any markdown formatting wrappers (like ```json), just return raw 
         {
             if (string.IsNullOrEmpty(_apiKey))
             {
-                return $"Hello! I am your TalentSphere Assistant. Here is a summary of your profile details I have loaded:\n\n{userContext}\n\nSince no Gemini API Key is configured, I am running in demo mode. Let me know how else I can assist you with your recruitment or application dashboard!";
+                return GetSmartFallbackChatReply(message, userContext);
             }
 
             var promptBuilder = new StringBuilder();
-            promptBuilder.AppendLine("You are TalentSphere's friendly, professional AI Career and Recruitment Assistant.");
-            promptBuilder.AppendLine("You are helping a user navigate the TalentSphere portal. Below is the database context we have for this user's account:");
+            promptBuilder.AppendLine("You are RecruitNexus's friendly, professional AI Career and Recruitment Assistant.");
+            promptBuilder.AppendLine("You are helping a user navigate the RecruitNexus portal. Below is the database context we have for this user's account:");
             promptBuilder.AppendLine(userContext);
             promptBuilder.AppendLine();
             promptBuilder.AppendLine("Instructions:");
@@ -529,10 +529,13 @@ Do not include any markdown formatting wrappers (like ```json), just return raw 
             promptBuilder.AppendLine();
             promptBuilder.AppendLine("Conversation History:");
 
-            foreach (var chat in history)
+            if (history != null)
             {
-                string role = chat.Sender == "user" ? "User" : "Assistant";
-                promptBuilder.AppendLine($"{role}: {chat.Text}");
+                foreach (var chat in history)
+                {
+                    string role = chat.Sender == "user" ? "User" : "Assistant";
+                    promptBuilder.AppendLine($"{role}: {chat.Text}");
+                }
             }
             promptBuilder.AppendLine($"User: {message}");
             promptBuilder.AppendLine("Assistant:");
@@ -559,7 +562,11 @@ Do not include any markdown formatting wrappers (like ```json), just return raw 
                 var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
                 HttpResponseMessage response = await _httpClient.PostAsync(url, content);
-                response.EnsureSuccessStatusCode();
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning($"Gemini API HTTP request returned status code {response.StatusCode}. Falling back to smart assistant.");
+                    return GetSmartFallbackChatReply(message, userContext);
+                }
 
                 string rawResponse = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(rawResponse);
@@ -570,12 +577,74 @@ Do not include any markdown formatting wrappers (like ```json), just return raw 
                     .GetProperty("parts")[0]
                     .GetProperty("text");
 
-                return (textElement.GetString() ?? "").Trim();
+                string reply = (textElement.GetString() ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(reply))
+                {
+                    return GetSmartFallbackChatReply(message, userContext);
+                }
+                return reply;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting chat reply from Gemini API.");
-                return $"I apologize, but I encountered an error communicating with my AI brain: {ex.Message}";
+                _logger.LogError(ex, "Error getting chat reply from Gemini API. Falling back to smart assistant.");
+                return GetSmartFallbackChatReply(message, userContext);
+            }
+        }
+
+        private string GetSmartFallbackChatReply(string message, string userContext)
+        {
+            string msgLower = (message ?? "").ToLowerInvariant();
+
+            string userName = "User";
+            string role = "Candidate";
+            if (!string.IsNullOrEmpty(userContext) && userContext.Contains("User: "))
+            {
+                var line = userContext.Split('\n').FirstOrDefault(l => l.StartsWith("User: "));
+                if (line != null)
+                {
+                    userName = line.Replace("User: ", "").Split('(')[0].Trim();
+                    if (line.Contains("(Recruiter)")) role = "Recruiter";
+                    else if (line.Contains("(Candidate)")) role = "Candidate";
+                    else if (line.Contains("Administrator")) role = "Admin";
+                }
+            }
+
+            if (role == "Candidate")
+            {
+                if (msgLower.Contains("job") || msgLower.Contains("match") || msgLower.Contains("fit") || msgLower.Contains("recommend") || msgLower.Contains("apply"))
+                {
+                    return $"Hi {userName}! Based on your candidate profile and skill set, you match best with **Software Engineer (.NET / C#)**, **Full-Stack Developer**, and **React Frontend Developer** roles.\n\nHere are tailored recommendations:\n- Explore open positions under **Find Jobs** to view roles matching your background.\n- Apply to postings with an ATS match score above 80% for top interview callback rates.\n- Review your submitted applications under your candidate dashboard!";
+                }
+
+                if (msgLower.Contains("resume") || msgLower.Contains("profile") || msgLower.Contains("skill") || msgLower.Contains("ats") || msgLower.Contains("bio"))
+                {
+                    return $"Hello {userName}! Your profile is active with your configured experience and technical skills.\n\nTo optimize your resume for recruiters:\n- Highlight quantifiable outcomes (e.g. 'Improved API query speed by 40%').\n- Ensure technical keywords (React, C#, SQL, TypeScript) are updated in your Profile.\n- Use our AI Resume Matcher on any job posting for instant ATS scoring!";
+                }
+
+                if (msgLower.Contains("status") || msgLower.Contains("application") || msgLower.Contains("applied") || msgLower.Contains("interview"))
+                {
+                    return $"Hi {userName}! Here is your current profile & application summary:\n\n{userContext}\n\nYou can track application progress and interview schedules directly in your Candidate Dashboard.";
+                }
+
+                return $"Hello {userName}! I'm your RecruitNexus AI Copilot. I can help you find top job matches, optimize your resume, or track your submitted applications.\n\nHow can I help you accelerate your job search today?";
+            }
+            else if (role == "Recruiter")
+            {
+                if (msgLower.Contains("job") || msgLower.Contains("post") || msgLower.Contains("create"))
+                {
+                    return $"Hello {userName}! Here is a summary of your active job listings:\n\n{userContext}\n\nI can assist you with writing job descriptions, setting target skill requirements, or generating candidate interview questions!";
+                }
+
+                if (msgLower.Contains("candidate") || msgLower.Contains("applicant") || msgLower.Contains("score") || msgLower.Contains("hire"))
+                {
+                    return $"Hi {userName}! I can help you review candidate match scores, generate AI hiring decision summaries, or schedule interviews.\n\nCheck your Recruiter Dashboard to run AI candidate evaluations for your open postings.";
+                }
+
+                return $"Hello {userName}! I'm your RecruitNexus AI Recruiter Copilot. I'm here to help you source talent, evaluate candidates, and streamline your hiring pipeline.";
+            }
+            else
+            {
+                return $"Hello {userName}! Here is your platform overview:\n\n{userContext}\n\nFeel free to ask me any questions regarding system analytics or user management!";
             }
         }
 

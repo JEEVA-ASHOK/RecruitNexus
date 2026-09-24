@@ -23,39 +23,63 @@ namespace backend.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllJobs()
+        public async Task<IActionResult> GetAllJobs([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] bool all = false)
         {
-            var jobs = await _context.Jobs
-                .Include(j => j.Recruiter)
-                .Include(j => j.Applications)
-                .OrderByDescending(j => j.CreatedAt)
-                .Select(j => new JobDto
-                {
-                    Id = j.Id,
-                    RecruiterId = j.RecruiterId,
-                    RecruiterName = string.IsNullOrEmpty(j.CompanyName) ? (j.Recruiter != null ? j.Recruiter.FullName : "Unknown") : j.CompanyName,
-                    CompanyName = string.IsNullOrEmpty(j.CompanyName) ? (j.Recruiter != null ? j.Recruiter.FullName : "Unknown") : j.CompanyName,
-                    Title = j.Title,
-                    Description = j.Description,
-                    Requirements = j.Requirements,
-                    Location = j.Location,
-                    JobType = j.JobType,
-                    SalaryRange = j.SalaryRange,
-                    Status = j.Status,
-                    CreatedAt = j.CreatedAt,
-                    ApplicationCount = j.Applications.Count,
-                    ApplicationDeadline = j.ApplicationDeadline,
-                    CompanyId = j.CompanyId
-                })
-                .ToListAsync();
+            page = page < 1 ? 1 : page;
+            if (!all)
+            {
+                pageSize = pageSize < 1 ? 20 : (pageSize > 100 ? 100 : pageSize);
+            }
 
-            return Ok(jobs);
+            var query = _context.Jobs
+                .AsNoTracking()
+                .OrderByDescending(j => j.CreatedAt)
+                .ThenByDescending(j => j.Id);
+
+            var totalCount = await query.CountAsync();
+
+            var projectedQuery = query.Select(j => new JobDto
+            {
+                Id = j.Id,
+                RecruiterId = j.RecruiterId,
+                RecruiterName = string.IsNullOrEmpty(j.CompanyName) ? (j.Recruiter != null ? j.Recruiter.FullName : "Unknown") : j.CompanyName,
+                CompanyName = string.IsNullOrEmpty(j.CompanyName) ? (j.Recruiter != null ? j.Recruiter.FullName : "Unknown") : j.CompanyName,
+                Title = j.Title,
+                Description = j.Description,
+                Requirements = j.Requirements,
+                Location = j.Location,
+                JobType = j.JobType,
+                SalaryRange = j.SalaryRange,
+                Status = j.Status,
+                CreatedAt = j.CreatedAt,
+                ApplicationCount = j.Applications.Count,
+                ApplicationDeadline = j.ApplicationDeadline,
+                CompanyId = j.CompanyId
+            });
+
+            List<JobDto> items;
+            if (all)
+            {
+                items = await projectedQuery.ToListAsync();
+                pageSize = totalCount > 0 ? totalCount : 20;
+            }
+            else
+            {
+                items = await projectedQuery
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+            }
+
+            var response = PaginatedResponse<JobDto>.Create(items, totalCount, page, pageSize);
+            return Ok(response);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetJobById(int id)
         {
             var job = await _context.Jobs
+                .AsNoTracking()
                 .Include(j => j.Recruiter)
                 .Include(j => j.Applications)
                 .FirstOrDefaultAsync(j => j.Id == id);
@@ -92,12 +116,17 @@ namespace backend.Controllers
         public async Task<IActionResult> CreateJob([FromBody] JobCreateRequest request)
         {
             var recruiterId = GetUserId();
-            var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId);
+            if (!recruiterId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
+            var recruiter = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == recruiterId.Value);
             int? companyId = recruiter?.CompanyId;
 
             var job = new Job
             {
-                RecruiterId = recruiterId,
+                RecruiterId = recruiterId.Value,
                 CompanyId = companyId,
                 Title = request.Title,
                 CompanyName = string.IsNullOrWhiteSpace(request.CompanyName) ? (recruiter?.FullName ?? string.Empty) : request.CompanyName,
@@ -122,12 +151,17 @@ namespace backend.Controllers
         public async Task<IActionResult> UpdateJob(int id, [FromBody] JobCreateRequest request)
         {
             var recruiterId = GetUserId();
+            if (!recruiterId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
             var job = await _context.Jobs.FirstOrDefaultAsync(j => j.Id == id);
 
             if (job == null) return NotFound(new { message = "Job not found." });
 
             // Only owner recruiter can update (unless Admin)
-            if (job.RecruiterId != recruiterId && !User.IsInRole("Admin"))
+            if (job.RecruiterId != recruiterId.Value && !User.IsInRole("Admin"))
             {
                 return Forbid();
             }
@@ -150,11 +184,16 @@ namespace backend.Controllers
         public async Task<IActionResult> DeleteJob(int id)
         {
             var recruiterId = GetUserId();
+            if (!recruiterId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
             var job = await _context.Jobs.FirstOrDefaultAsync(j => j.Id == id);
 
             if (job == null) return NotFound(new { message = "Job not found." });
 
-            if (job.RecruiterId != recruiterId && !User.IsInRole("Admin"))
+            if (job.RecruiterId != recruiterId.Value && !User.IsInRole("Admin"))
             {
                 return Forbid();
             }
@@ -169,13 +208,18 @@ namespace backend.Controllers
         public async Task<IActionResult> SaveJob(int id)
         {
             var candidateId = GetUserId();
+            if (!candidateId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
             var jobExists = await _context.Jobs.AnyAsync(j => j.Id == id);
             if (!jobExists)
             {
                 return NotFound(new { message = "Job not found." });
             }
 
-            var alreadySaved = await _context.SavedJobs.AnyAsync(s => s.CandidateId == candidateId && s.JobId == id);
+            var alreadySaved = await _context.SavedJobs.AnyAsync(s => s.CandidateId == candidateId.Value && s.JobId == id);
             if (alreadySaved)
             {
                 return BadRequest(new { message = "Job is already saved." });
@@ -183,7 +227,7 @@ namespace backend.Controllers
 
             var savedJob = new SavedJob
             {
-                CandidateId = candidateId,
+                CandidateId = candidateId.Value,
                 JobId = id,
                 SavedAt = DateTime.UtcNow
             };
@@ -199,8 +243,13 @@ namespace backend.Controllers
         public async Task<IActionResult> UnsaveJob(int id)
         {
             var candidateId = GetUserId();
+            if (!candidateId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
             var savedJob = await _context.SavedJobs
-                .FirstOrDefaultAsync(s => s.CandidateId == candidateId && s.JobId == id);
+                .FirstOrDefaultAsync(s => s.CandidateId == candidateId.Value && s.JobId == id);
 
             if (savedJob == null)
             {
@@ -218,10 +267,14 @@ namespace backend.Controllers
         public async Task<IActionResult> GetSavedJobs()
         {
             var candidateId = GetUserId();
+            if (!candidateId.HasValue)
+            {
+                return Unauthorized(new { message = "Session expired or invalid user context." });
+            }
+
             var savedJobs = await _context.SavedJobs
-                .Include(s => s.Job)
-                .ThenInclude(j => j!.Recruiter)
-                .Where(s => s.CandidateId == candidateId)
+                .AsNoTracking()
+                .Where(s => s.CandidateId == candidateId.Value)
                 .OrderByDescending(s => s.SavedAt)
                 .Select(s => new JobDto
                 {
@@ -245,14 +298,16 @@ namespace backend.Controllers
             return Ok(savedJobs);
         }
 
-        private int GetUserId()
+        private int? GetUserId()
         {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var claim = User.FindFirst(ClaimTypes.NameIdentifier)
+                     ?? User.FindFirst("sub")
+                     ?? User.FindFirst("id");
             if (claim != null && int.TryParse(claim.Value, out int id))
             {
                 return id;
             }
-            throw new UnauthorizedAccessException();
+            return null;
         }
     }
 }

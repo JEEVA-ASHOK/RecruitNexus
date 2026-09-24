@@ -22,111 +22,82 @@ namespace backend.Controllers
         private readonly RecruitmentDbContext _context;
         private readonly IGeminiService _geminiService;
         private readonly IEmailService _emailService;
+        private readonly ILogger<ApplicationsController> _logger;
 
-        public ApplicationsController(RecruitmentDbContext context, IGeminiService geminiService, IEmailService emailService)
+        public ApplicationsController(RecruitmentDbContext context, IGeminiService geminiService, IEmailService emailService, ILogger<ApplicationsController> logger)
         {
             _context = context;
             _geminiService = geminiService;
             _emailService = emailService;
+            _logger = logger;
         }
 
         [HttpGet]
         [Authorize]
-        public async Task<IActionResult> GetApplications()
+        public async Task<IActionResult> GetApplications([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] bool all = false)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
+
+            page = page < 1 ? 1 : page;
+            if (!all)
+            {
+                pageSize = pageSize < 1 ? 20 : (pageSize > 100 ? 100 : pageSize);
+            }
+
+            IQueryable<Application> query = _context.Applications.AsNoTracking();
 
             if (role == "Candidate")
             {
-                var applications = await _context.Applications
-                    .Include(a => a.Job)
-                    .ThenInclude(j => j!.Recruiter)
-                    .Where(a => a.CandidateId == userId)
-                    .OrderByDescending(a => a.AppliedAt)
-                    .Select(a => new ApplicationDto
-                    {
-                        Id = a.Id,
-                        JobId = a.JobId,
-                        JobTitle = a.Job != null ? a.Job.Title : "Unknown",
-                        JobCompany = a.Job == null ? "Unknown" : (a.Job.Company != null ? a.Job.Company.Name : (string.IsNullOrEmpty(a.Job.CompanyName) ? "Unknown" : a.Job.CompanyName)),
-                        CandidateId = a.CandidateId,
-                        CandidateName = a.Candidate != null ? a.Candidate.FullName : "Unknown",
-                        CoverLetter = a.CoverLetter ?? string.Empty,
-                        ResumePath = a.ResumePath ?? string.Empty,
-                        Status = a.Status ?? string.Empty,
-                        MatchingScore = a.MatchingScore,
-                        AI_Feedback = a.AI_Feedback ?? string.Empty,
-                        AppliedAt = a.AppliedAt,
-                        RecruiterNotes = string.Empty,
-                        OfferLetterContent = a.OfferLetterContent ?? string.Empty,
-                        OfferStatus = a.OfferStatus ?? "None"
-                    })
-                    .ToListAsync();
-
-                return Ok(applications);
+                query = query.Where(a => a.CandidateId == userId);
             }
             else if (role == "Recruiter")
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                var recruiter = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
                 var recruiterCompanyId = recruiter?.CompanyId;
+                query = query.Where(a => a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId));
+            }
 
-                var applications = await _context.Applications
-                    .Include(a => a.Job)
-                    .Include(a => a.Candidate)
-                    .Where(a => a.CompanyId == recruiterCompanyId || (recruiterCompanyId == null && a.Job!.RecruiterId == userId))
-                    .OrderByDescending(a => a.AppliedAt)
-                    .Select(a => new ApplicationDto
-                    {
-                        Id = a.Id,
-                        JobId = a.JobId,
-                        JobTitle = a.Job != null ? a.Job.Title : "Unknown",
-                        JobCompany = a.Job == null ? "Unknown" : (a.Job.Company != null ? a.Job.Company.Name : (string.IsNullOrEmpty(a.Job.CompanyName) ? "Unknown" : a.Job.CompanyName)),
-                        CandidateId = a.CandidateId,
-                        CandidateName = a.Candidate != null ? a.Candidate.FullName : "Unknown",
-                        CoverLetter = a.CoverLetter ?? string.Empty,
-                        ResumePath = a.ResumePath ?? string.Empty,
-                        Status = a.Status ?? string.Empty,
-                        MatchingScore = a.MatchingScore,
-                        AI_Feedback = a.AI_Feedback ?? string.Empty,
-                        AppliedAt = a.AppliedAt,
-                        RecruiterNotes = a.RecruiterNotes ?? string.Empty,
-                        OfferLetterContent = a.OfferLetterContent ?? string.Empty,
-                        OfferStatus = a.OfferStatus ?? "None"
-                    })
-                    .ToListAsync();
+            query = query.OrderByDescending(a => a.AppliedAt).ThenByDescending(a => a.Id);
 
-                return Ok(applications);
+            var totalCount = await query.CountAsync();
+
+            var projectedQuery = query.Select(a => new ApplicationDto
+            {
+                Id = a.Id,
+                JobId = a.JobId,
+                JobTitle = a.Job != null ? a.Job.Title : "Unknown",
+                JobCompany = a.Job == null ? "Unknown" : (a.Job.Company != null ? a.Job.Company.Name : (string.IsNullOrEmpty(a.Job.CompanyName) ? "Unknown" : a.Job.CompanyName)),
+                CandidateId = a.CandidateId,
+                CandidateName = a.Candidate != null ? a.Candidate.FullName : "Unknown",
+                CoverLetter = a.CoverLetter ?? string.Empty,
+                ResumePath = a.ResumePath ?? string.Empty,
+                Status = a.Status ?? string.Empty,
+                MatchingScore = a.MatchingScore,
+                AI_Feedback = a.AI_Feedback ?? string.Empty,
+                AppliedAt = a.AppliedAt,
+                RecruiterNotes = role == "Candidate" ? string.Empty : (a.RecruiterNotes ?? string.Empty),
+                OfferLetterContent = a.OfferLetterContent ?? string.Empty,
+                OfferStatus = a.OfferStatus ?? "None"
+            });
+
+            List<ApplicationDto> items;
+            if (all)
+            {
+                items = await projectedQuery.ToListAsync();
+                pageSize = totalCount > 0 ? totalCount : 20;
             }
             else
             {
-                // Admin gets all
-                var applications = await _context.Applications
-                    .Include(a => a.Job)
-                    .Include(a => a.Candidate)
-                    .OrderByDescending(a => a.AppliedAt)
-                    .Select(a => new ApplicationDto
-                    {
-                        Id = a.Id,
-                        JobId = a.JobId,
-                        JobTitle = a.Job != null ? a.Job.Title : "Unknown",
-                        JobCompany = a.Job == null ? "Unknown" : (a.Job.Company != null ? a.Job.Company.Name : (string.IsNullOrEmpty(a.Job.CompanyName) ? "Unknown" : a.Job.CompanyName)),
-                        CandidateId = a.CandidateId,
-                        CandidateName = a.Candidate != null ? a.Candidate.FullName : "Unknown",
-                        CoverLetter = a.CoverLetter ?? string.Empty,
-                        ResumePath = a.ResumePath ?? string.Empty,
-                        Status = a.Status ?? string.Empty,
-                        MatchingScore = a.MatchingScore,
-                        AI_Feedback = a.AI_Feedback ?? string.Empty,
-                        AppliedAt = a.AppliedAt,
-                        RecruiterNotes = a.RecruiterNotes ?? string.Empty,
-                        OfferLetterContent = a.OfferLetterContent ?? string.Empty,
-                        OfferStatus = a.OfferStatus ?? "None"
-                    })
+                items = await projectedQuery
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
                     .ToListAsync();
-
-                return Ok(applications);
             }
+
+            var response = PaginatedResponse<ApplicationDto>.Create(items, totalCount, page, pageSize);
+            return Ok(response);
         }
 
         [HttpGet("{id}")]
@@ -134,9 +105,11 @@ namespace backend.Controllers
         public async Task<IActionResult> GetApplicationById(int id)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             var application = await _context.Applications
+                .AsNoTracking()
                 .Include(a => a.Job)
                 .Include(a => a.Candidate)
                 .FirstOrDefaultAsync(a => a.Id == id);
@@ -144,11 +117,11 @@ namespace backend.Controllers
             if (application == null) return NotFound(new { message = "Application not found." });
 
             // Check permissions
-            if (role == "Candidate" && application.CandidateId != userId) return Forbid();
+            if (role == "Candidate" && application.CandidateId != userId.Value) return Forbid();
             if (role == "Recruiter")
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-                if (application.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != userId)
+                var recruiter = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value);
+                if (application.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != userId.Value)
                 {
                     return Forbid();
                 }
@@ -180,14 +153,15 @@ namespace backend.Controllers
         public async Task<IActionResult> SubmitApplication(int jobId, [FromBody] ApplicationSubmitRequest request)
         {
             var candidateId = GetUserId();
+            if (!candidateId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
 
             // Check if already applied
-            if (await _context.Applications.AnyAsync(a => a.JobId == jobId && a.CandidateId == candidateId))
+            if (await _context.Applications.AnyAsync(a => a.JobId == jobId && a.CandidateId == candidateId.Value))
             {
                 return BadRequest(new { message = "You have already applied for this job." });
             }
 
-            var job = await _context.Jobs.FirstOrDefaultAsync(j => j.Id == jobId);
+            var job = await _context.Jobs.AsNoTracking().FirstOrDefaultAsync(j => j.Id == jobId);
             if (job == null) return NotFound(new { message = "Job not found." });
 
             if (job.Status == "Closed" || (job.ApplicationDeadline.HasValue && job.ApplicationDeadline.Value < DateTime.UtcNow))
@@ -195,14 +169,14 @@ namespace backend.Controllers
                 return BadRequest(new { message = "Applications Closed." });
             }
 
-            var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == candidateId);
+            var profile = await _context.Profiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == candidateId);
             if (profile == null || string.IsNullOrEmpty(profile.ResumePath))
             {
                 return BadRequest(new { message = "Please upload a resume in your profile before applying." });
             }
 
             // Read resume text for AI matching
-            string resumeText = GetResumeText(profile.ResumePath);
+            string resumeText = await GetResumeTextAsync(profile.ResumePath);
             int score = 0;
             string feedback = "No usable resume text available for AI evaluation.";
 
@@ -245,7 +219,7 @@ namespace backend.Controllers
             var application = new Application
             {
                 JobId = jobId,
-                CandidateId = candidateId,
+                CandidateId = candidateId.Value,
                 CompanyId = job.CompanyId,
                 CoverLetter = request.CoverLetter,
                 ResumePath = profile.ResumePath,
@@ -305,7 +279,7 @@ namespace backend.Controllers
                     await _emailService.SendEmailAsync(recruiter.Email, recruiterSubject, recruiterBody);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Silently catch application controller exception to avoid breaking the application submit flow
             }
@@ -318,6 +292,7 @@ namespace backend.Controllers
         public async Task<IActionResult> UpdateApplicationStatus(int id, [FromBody] UpdateStatusRequest request)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var application = await _context.Applications
                 .Include(a => a.Job)
                 .Include(a => a.Candidate)
@@ -328,48 +303,132 @@ namespace backend.Controllers
             // Only recruiter belonging to the job's company can update status (unless Admin)
             if (!User.IsInRole("Admin"))
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-                if (application.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != userId)
+                var recruiter = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value);
+                if (application.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != userId.Value)
                 {
                     return Forbid();
                 }
             }
 
+            var previousStatus = application.Status;
             application.Status = request.Status;
             await _context.SaveChangesAsync();
 
-            // Direct Email/Push Alert Notification Dispatcher Hook
-            if (application.Candidate != null)
+            // Dispatch application status update email notification only when status changes
+            if (!string.Equals(previousStatus, request.Status, StringComparison.OrdinalIgnoreCase) && 
+                application.Candidate != null && 
+                !string.IsNullOrWhiteSpace(application.Candidate.Email))
             {
-                Console.WriteLine($"\n========================================================");
-                Console.WriteLine($"[EMAIL ALERT SENT] To: {application.Candidate.Email}");
-                Console.WriteLine($"Subject: RecruitNexus Application Status Update");
-                Console.WriteLine($"Body: Dear {application.Candidate.FullName}, your application status for the position '{application.Job!.Title}' has been updated to: {request.Status}. Log in to your candidate dashboard to view feedback.");
-                Console.WriteLine($"========================================================\n");
+                try
+                {
+                    var candidateName = System.Net.WebUtility.HtmlEncode(application.Candidate.FullName ?? "Candidate");
+                    var jobTitle = System.Net.WebUtility.HtmlEncode(application.Job?.Title ?? "Open Position");
+                    var newStatus = System.Net.WebUtility.HtmlEncode(request.Status ?? "Updated");
+
+                    var subject = $"Application Status Update: {jobTitle}";
+                    var body = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
+                            <h2 style='color: #0056b3;'>Application Status Updated</h2>
+                            <p>Dear {candidateName},</p>
+                            <p>Your application status for the position of <strong>{jobTitle}</strong> has been updated to:</p>
+                            <p style='font-size: 18px; font-weight: bold; color: #0056b3;'>{newStatus}</p>
+                            <br/>
+                            <p>Please log in to your RecruitNexus candidate dashboard to review details and updates.</p>
+                            <br/>
+                            <p>Best regards,<br/><strong>The RecruitNexus Team</strong></p>
+                        </div>";
+
+                    await _emailService.SendEmailAsync(application.Candidate.Email, subject, body);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send application status update email.");
+                }
             }
 
             return Ok(new { message = $"Application status updated to {request.Status}." });
         }
 
         [HttpGet("resume/{fileName}")]
-        public IActionResult GetResumeFile(string fileName, [FromQuery] bool download = false)
+        [Authorize]
+        public async Task<IActionResult> GetResumeFile(string fileName, [FromQuery] bool download = false)
         {
-            var filePath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", fileName);
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return BadRequest(new { message = "File name is required." });
+            }
+
+            // Path Traversal Protection: Sanitize input filename
+            string cleanFileName = Path.GetFileName(fileName);
+            if (string.IsNullOrWhiteSpace(cleanFileName) || cleanFileName != fileName || fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
+            {
+                return BadRequest(new { message = "Invalid file name requested." });
+            }
+
+            var uploadsDir = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "uploads"));
+            var filePath = Path.GetFullPath(Path.Combine(uploadsDir, cleanFileName));
+
+            // Enforce that resolved path remains strictly inside the intended uploads directory
+            if (!filePath.StartsWith(uploadsDir, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Invalid file path requested." });
+            }
+
+            // Authorization logic: Candidate, Recruiter, Admin scoping (Evaluated before physical file existence check)
+            var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
+            var role = GetUserRole();
+
+            if (role == "Candidate")
+            {
+                // Candidates may access only their own resume (profile resume or any submitted application resume)
+                var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId.Value);
+                bool isOwnProfileResume = profile != null && !string.IsNullOrEmpty(profile.ResumePath) && profile.ResumePath.Equals(cleanFileName, StringComparison.OrdinalIgnoreCase);
+
+                bool isOwnAppResume = await _context.Applications.AnyAsync(a => a.CandidateId == userId.Value && a.ResumePath == cleanFileName);
+
+                if (!isOwnProfileResume && !isOwnAppResume)
+                {
+                    return Forbid();
+                }
+            }
+            else if (role == "Recruiter")
+            {
+                // Recruiters may access a resume only if the candidate/application belongs to a job/company the recruiter is authorized to access
+                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+                int? recruiterCompanyId = recruiter?.CompanyId;
+
+                bool isAuthorizedApplicant = await _context.Applications.AnyAsync(a =>
+                    (a.ResumePath == cleanFileName || (a.Candidate != null && a.Candidate.Profile != null && a.Candidate.Profile.ResumePath == cleanFileName)) &&
+                    ((recruiterCompanyId != null && a.CompanyId == recruiterCompanyId) || (a.Job != null && a.Job.RecruiterId == userId.Value))
+                );
+
+                if (!isAuthorizedApplicant && !User.IsInRole("Admin"))
+                {
+                    return Forbid();
+                }
+            }
+            else if (role != "Admin")
+            {
+                return Forbid();
+            }
+
+            // Check physical file existence
             if (!System.IO.File.Exists(filePath))
             {
                 return NotFound(new { message = "Resume file not found." });
             }
 
-            var mimeType = fileName.EndsWith(".pdf") ? "application/pdf" : "text/plain";
+            var mimeType = cleanFileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" : "text/plain";
             if (download)
             {
-                return PhysicalFile(filePath, mimeType, fileName);
+                return PhysicalFile(filePath, mimeType, cleanFileName);
             }
             Response.Headers.Append("Content-Disposition", "inline");
             return PhysicalFile(filePath, mimeType);
         }
 
-        private string GetResumeText(string resumePath)
+        private async Task<string> GetResumeTextAsync(string resumePath)
         {
             var filePath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", resumePath);
             if (!System.IO.File.Exists(filePath)) return string.Empty;
@@ -399,7 +458,7 @@ namespace backend.Controllers
             }
             else
             {
-                return System.IO.File.ReadAllText(filePath);
+                return await System.IO.File.ReadAllTextAsync(filePath);
             }
         }
 
@@ -408,12 +467,13 @@ namespace backend.Controllers
         public async Task<IActionResult> UpdateRecruiterNotes(int id, [FromBody] UpdateRecruiterNotesRequest request)
         {
             var recruiterId = GetUserId();
+            if (!recruiterId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var application = await _context.Applications.FirstOrDefaultAsync(a => a.Id == id);
             if (application == null) return NotFound(new { message = "Application not found." });
 
             if (!User.IsInRole("Admin"))
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId);
+                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId.Value);
                 if (application.CompanyId != recruiter?.CompanyId)
                 {
                     return Forbid();
@@ -430,13 +490,14 @@ namespace backend.Controllers
         public async Task<IActionResult> UpdateOfferLetter(int id, [FromBody] GenerateOfferRequest request)
         {
             var recruiterId = GetUserId();
+            if (!recruiterId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var application = await _context.Applications.Include(a => a.Job).FirstOrDefaultAsync(a => a.Id == id);
             if (application == null) return NotFound(new { message = "Application not found." });
 
             if (!User.IsInRole("Admin"))
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId);
-                if (application.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != recruiterId)
+                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId.Value);
+                if (application.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != recruiterId.Value)
                 {
                     return Forbid();
                 }
@@ -467,7 +528,7 @@ namespace backend.Controllers
                     await _emailService.SendEmailAsync(candidate.Email, subject, body);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Silently catch exception to avoid blocking the DB transaction save
             }
@@ -480,10 +541,11 @@ namespace backend.Controllers
         public async Task<IActionResult> RespondToOffer(int id, [FromBody] RespondOfferRequest request)
         {
             var candidateId = GetUserId();
+            if (!candidateId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var application = await _context.Applications.FirstOrDefaultAsync(a => a.Id == id);
             if (application == null) return NotFound(new { message = "Application not found." });
 
-            if (application.CandidateId != candidateId)
+            if (application.CandidateId != candidateId.Value)
             {
                 return Forbid();
             }
@@ -514,7 +576,7 @@ namespace backend.Controllers
             // Send offer response emails
             try
             {
-                var candidate = await _context.Users.FirstOrDefaultAsync(u => u.Id == candidateId);
+                var candidate = await _context.Users.FirstOrDefaultAsync(u => u.Id == candidateId.Value);
                 var job = await _context.Jobs.FirstOrDefaultAsync(j => j.Id == application.JobId);
                 var recruiter = job != null ? await _context.Users.FirstOrDefaultAsync(u => u.Id == job.RecruiterId) : null;
 
@@ -555,7 +617,7 @@ namespace backend.Controllers
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Silently catch exception to avoid blocking the DB transaction save
             }
@@ -568,6 +630,7 @@ namespace backend.Controllers
         public async Task<IActionResult> GenerateAtsAnalysis(int applicationId)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             var application = await _context.Applications
@@ -581,12 +644,12 @@ namespace backend.Controllers
             }
 
             // Authorization Check: Candidates can only analyze their own applications
-            if (role == "Candidate" && application.CandidateId != userId)
+            if (role == "Candidate" && application.CandidateId != userId.Value)
             {
                 return Forbid();
             }
 
-            string resumeText = GetResumeText(application.ResumePath);
+            string resumeText = await GetResumeTextAsync(application.ResumePath);
             if (string.IsNullOrWhiteSpace(resumeText))
             {
                 resumeText = $"Candidate Name: {application.Candidate?.FullName}. Skills: React, C#, SQL, ASP.NET Core, TypeScript. Experience: 3+ years in full stack development.";
@@ -606,7 +669,7 @@ namespace backend.Controllers
             return Ok(analysis);
         }
 
-        private int GetUserId()
+        private int? GetUserId()
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier)
                      ?? User.FindFirst("sub")
@@ -615,7 +678,7 @@ namespace backend.Controllers
             {
                 return id;
             }
-            throw new UnauthorizedAccessException();
+            return null;
         }
 
         private string GetUserRole()

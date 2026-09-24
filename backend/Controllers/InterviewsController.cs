@@ -36,6 +36,7 @@ namespace backend.Controllers
         public async Task<IActionResult> GetInterviews()
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             if (role == "Candidate")
@@ -44,7 +45,7 @@ namespace backend.Controllers
                     .Include(i => i.Application)
                     .ThenInclude(a => a!.Job)
                     .Include(i => i.Interviewer)
-                    .Where(i => i.Application!.CandidateId == userId)
+                    .Where(i => i.Application!.CandidateId == userId.Value)
                     .OrderByDescending(i => i.InterviewDate)
                     .Select(i => new InterviewDto
                     {
@@ -75,59 +76,11 @@ namespace backend.Controllers
                     })
                     .ToListAsync();
 
-                // Trigger simulated reminder emails to candidate
-                var now = DateTime.UtcNow;
-                foreach (var i in interviews)
-                {
-                    var diff = i.InterviewDate - now;
-                    var totalHours = diff.TotalHours;
-                    var totalDays = diff.TotalDays;
-
-                    if (i.Status == "Scheduled" && totalHours > 0)
-                    {
-                        string alertType = "";
-                        if (totalHours <= 2) alertType = "2 Hours Before";
-                        else if (totalDays <= 1) alertType = "1 Day Before";
-                        else if (totalDays <= 3) alertType = "3 Days Before";
-                        else if (totalDays <= 5) alertType = "5 Days Before";
-
-                        if (!string.IsNullOrEmpty(alertType))
-                        {
-                            var candidateEmail = _context.Users.FirstOrDefault(u => u.Id == userId)?.Email ?? "candidate@gmail.com";
-                            Console.WriteLine($"\n========================================================");
-                            Console.WriteLine($"[REMINDER EMAIL SENT] To: {candidateEmail} ({alertType})");
-                            Console.WriteLine($"Subject: Reminder: RecruitNexus Interview Scheduled");
-                            Console.WriteLine($"Body: Dear Candidate, this is a reminder that your interview for '{i.JobTitle}' is in {alertType}.");
-                            Console.WriteLine($"========================================================\n");
-
-                            try
-                            {
-                                var subject = $"Reminder: RecruitNexus Interview Scheduled ({alertType})";
-                                var body = $@"
-                                    <div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;'>
-                                        <h2 style='color: #fd7e14;'>Interview Reminder</h2>
-                                        <p>Dear Candidate,</p>
-                                        <p>This is a reminder that your scheduled interview for the position <strong>{i.JobTitle}</strong> is starting in <strong>{alertType}</strong>.</p>
-                                        <p><strong>Format:</strong> {i.Format}</p>
-                                        <p><strong>Scheduled Time:</strong> {i.InterviewDate:f}</p>
-                                        <br/>
-                                        <p>Best regards,<br/><strong>The RecruitNexus Team</strong></p>
-                                    </div>";
-                                await _emailService.SendEmailAsync(candidateEmail, subject, body);
-                            }
-                            catch
-                            {
-                                // Silently ignore exception inside loop
-                            }
-                        }
-                    }
-                }
-
                 return Ok(interviews);
             }
             else
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                var recruiter = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value);
                 var recruiterCompanyId = recruiter?.CompanyId;
 
                 // Recruiter sees company scope, Admin sees all
@@ -136,7 +89,7 @@ namespace backend.Controllers
                     .ThenInclude(a => a!.Job)
                     .Include(i => i.Application!.Candidate)
                     .Include(i => i.Interviewer)
-                    .Where(i => i.InterviewerId == userId || (recruiterCompanyId != null && i.Application!.CompanyId == recruiterCompanyId) || role == "Admin")
+                    .Where(i => i.InterviewerId == userId.Value || (recruiterCompanyId != null && i.Application!.CompanyId == recruiterCompanyId) || role == "Admin")
                     .OrderByDescending(i => i.InterviewDate)
                     .Select(i => new InterviewDto
                     {
@@ -176,9 +129,11 @@ namespace backend.Controllers
         public async Task<IActionResult> GetInterviewById(int id)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             var interview = await _context.Interviews
+                .AsNoTracking()
                 .Include(i => i.Application)
                 .ThenInclude(a => a!.Job)
                 .Include(i => i.Application!.Candidate)
@@ -187,11 +142,11 @@ namespace backend.Controllers
 
             if (interview == null) return NotFound(new { message = "Interview not found." });
 
-            if (role == "Candidate" && interview.Application!.CandidateId != userId) return Forbid();
+            if (role == "Candidate" && interview.Application!.CandidateId != userId.Value) return Forbid();
             if (role == "Recruiter")
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-                if (interview.Application!.CompanyId != recruiter?.CompanyId && interview.InterviewerId != userId && !User.IsInRole("Admin"))
+                var recruiter = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId.Value);
+                if (interview.Application!.CompanyId != recruiter?.CompanyId && interview.InterviewerId != userId.Value && !User.IsInRole("Admin"))
                 {
                     return Forbid();
                 }
@@ -233,6 +188,7 @@ namespace backend.Controllers
         public async Task<IActionResult> ScheduleInterview([FromBody] InterviewScheduleRequest request)
         {
             var recruiterId = GetUserId();
+            if (!recruiterId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
 
             var application = await _context.Applications
                 .Include(a => a.Job)
@@ -244,8 +200,8 @@ namespace backend.Controllers
             // Check if user belongs to the job's company (unless Admin)
             if (!User.IsInRole("Admin"))
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId);
-                if (application.Job!.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != recruiterId)
+                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId.Value);
+                if (application.Job!.CompanyId != recruiter?.CompanyId && application.Job!.RecruiterId != recruiterId.Value)
                 {
                     return Forbid();
                 }
@@ -270,7 +226,7 @@ namespace backend.Controllers
             var interview = new Interview
             {
                 ApplicationId = request.ApplicationId,
-                InterviewerId = recruiterId,
+                InterviewerId = recruiterId.Value,
                 InterviewDate = request.InterviewDate,
                 Format = request.Format,
                 MeetingLink = request.MeetingLink,
@@ -341,7 +297,7 @@ namespace backend.Controllers
 
                     await _emailService.SendEmailAsync(application.Candidate.Email, subject, body);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Silently ignore exception inside controller
                 }
@@ -355,11 +311,12 @@ namespace backend.Controllers
         public async Task<IActionResult> UpdateInterviewStatus(int id, [FromBody] UpdateInterviewStatusRequest request)
         {
             var recruiterId = GetUserId();
+            if (!recruiterId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var interview = await _context.Interviews.FirstOrDefaultAsync(i => i.Id == id);
 
             if (interview == null) return NotFound(new { message = "Interview not found." });
 
-            if (interview.InterviewerId != recruiterId && !User.IsInRole("Admin"))
+            if (interview.InterviewerId != recruiterId.Value && !User.IsInRole("Admin"))
             {
                 return Forbid();
             }
@@ -375,6 +332,7 @@ namespace backend.Controllers
         public async Task<IActionResult> ConfirmInterviewAttendance(int id, [FromBody] UpdateConfirmationRequest request)
         {
             var candidateId = GetUserId();
+            if (!candidateId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var interview = await _context.Interviews
                 .Include(i => i.Application)
                 .FirstOrDefaultAsync(i => i.Id == id);
@@ -382,7 +340,7 @@ namespace backend.Controllers
             if (interview == null) return NotFound(new { message = "Interview not found." });
 
             // Ensure candidate owns this interview
-            if (interview.Application!.CandidateId != candidateId)
+            if (interview.Application!.CandidateId != candidateId.Value)
             {
                 return Forbid();
             }
@@ -399,7 +357,7 @@ namespace backend.Controllers
             // Send interview confirmation emails
             try
             {
-                var candidate = await _context.Users.FirstOrDefaultAsync(u => u.Id == candidateId);
+                var candidate = await _context.Users.FirstOrDefaultAsync(u => u.Id == candidateId.Value);
                 var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == interview.InterviewerId);
                 var job = interview.Application != null ? await _context.Jobs.FirstOrDefaultAsync(j => j.Id == interview.Application.JobId) : null;
 
@@ -442,7 +400,7 @@ namespace backend.Controllers
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Silently catch exceptions to ensure DB operations are not blocked
             }
@@ -455,6 +413,7 @@ namespace backend.Controllers
         public async Task<IActionResult> CompleteInterview(int id, [FromBody] CompleteInterviewRequest request)
         {
             var recruiterId = GetUserId();
+            if (!recruiterId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var interview = await _context.Interviews
                 .Include(i => i.Application)
                 .FirstOrDefaultAsync(i => i.Id == id);
@@ -463,8 +422,8 @@ namespace backend.Controllers
 
             if (!User.IsInRole("Admin"))
             {
-                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId);
-                if (interview.Application!.CompanyId != recruiter?.CompanyId && interview.InterviewerId != recruiterId)
+                var recruiter = await _context.Users.FirstOrDefaultAsync(u => u.Id == recruiterId.Value);
+                if (interview.Application!.CompanyId != recruiter?.CompanyId && interview.InterviewerId != recruiterId.Value)
                 {
                     return Forbid();
                 }
@@ -508,6 +467,7 @@ namespace backend.Controllers
         public async Task<IActionResult> StartAiInterview(int id)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             var interview = await _context.Interviews
@@ -519,7 +479,7 @@ namespace backend.Controllers
 
             if (interview == null) return NotFound(new { message = "Interview not found." });
 
-            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId))
+            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId.Value))
             {
                 return Forbid();
             }
@@ -549,6 +509,7 @@ namespace backend.Controllers
         public async Task<IActionResult> SubmitAnswer(int id, [FromBody] SubmitAnswerRequest request)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             var interview = await _context.Interviews
@@ -557,7 +518,7 @@ namespace backend.Controllers
 
             if (interview == null) return NotFound(new { message = "Interview not found." });
 
-            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId))
+            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId.Value))
             {
                 return Forbid();
             }
@@ -570,6 +531,7 @@ namespace backend.Controllers
         public async Task<IActionResult> CompleteAiInterview(int id, [FromBody] CompleteAiInterviewRequest request)
         {
             var userId = GetUserId();
+            if (!userId.HasValue) return Unauthorized(new { message = "Session expired or invalid user context." });
             var role = GetUserRole();
 
             var interview = await _context.Interviews
@@ -581,7 +543,7 @@ namespace backend.Controllers
 
             if (interview == null) return NotFound(new { message = "Interview not found." });
 
-            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId))
+            if (role == "Candidate" && (interview.Application == null || interview.Application.CandidateId != userId.Value))
             {
                 return Forbid();
             }
@@ -643,7 +605,7 @@ namespace backend.Controllers
             }
         }
 
-        private int GetUserId()
+        private int? GetUserId()
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier)
                      ?? User.FindFirst("sub")
@@ -652,7 +614,7 @@ namespace backend.Controllers
             {
                 return id;
             }
-            throw new UnauthorizedAccessException();
+            return null;
         }
 
         private string GetUserRole()
